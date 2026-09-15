@@ -167,6 +167,16 @@ All results are based on ASELS.IS data from 2024-01-01 to 2025-12-31 using the f
 
 ---
 
+## Deliverables
+
+| Folder | Contents |
+|---|---|
+| [`docs/report/`](docs/report/) | Final term project report (`ASELS_Term_Project_Final_Report.docx`) |
+| [`docs/presentation/`](docs/presentation/) | Project presentation slides (`ASELS_Term_Project_Presentation_EN.pptx`) |
+| [`docs/mcp_demo/`](docs/mcp_demo/) | Five screenshots showing Claude Desktop calling all six MCP tools to analyse ASELS.IS end-to-end (read part1 → part5 in order) |
+
+---
+
 ## Disclaimer
 
 This project is for **educational purposes only** and does not constitute investment advice. All analysis is performed on historical data; past performance is not indicative of future results. Use at your own risk.
