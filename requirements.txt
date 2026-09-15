@@ -4,3 +4,5 @@ numpy
 matplotlib
 scipy
 scikit-learn
+mcp<2
+anthropic
