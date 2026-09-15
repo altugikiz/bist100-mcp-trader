@@ -74,6 +74,79 @@ def calculate_macd(
     )
 
 
+def calculate_technical_score(
+    df: pd.DataFrame,
+    pivot_lows: pd.DataFrame | None = None,
+    support_proximity_pct: float = 0.05,
+) -> pd.DataFrame:
+    """
+    Score each trading day on 0-5 technical quality criteria.
+
+    Criteria (each worth +1 point)
+    --------------------------------
+    1. crit_trend      : SMA20 > SMA50  (short-term MA above long-term MA)
+    2. crit_price_ma   : Close > SMA20  (price above short-term trend)
+    3. crit_rsi        : 30 < RSI14 < 70  (healthy momentum, not extreme)
+    4. crit_macd       : MACD > MACD_Signal  (bullish MACD crossover)
+    5. crit_support    : Close is within `support_proximity_pct` (default 5%)
+                         above the most recent pivot low at that date.
+                         Requires `pivot_lows` DataFrame from
+                         support_resistance.find_support_resistance().
+                         Criterion is NaN (skipped) if pivot_lows is None or
+                         no prior pivot low exists for a given row.
+
+    Prerequisite columns in df: SMA20, SMA50, RSI14, MACD, MACD_Signal.
+    Call calculate_sma/ema/rsi/macd first.
+
+    Args:
+        df:                    OHLCV DataFrame with all indicator columns added.
+        pivot_lows:            DataFrame of pivot low rows (subset of df) from
+                               find_support_resistance(). Index must be DatetimeIndex.
+        support_proximity_pct: Maximum fractional distance above the nearest
+                               prior support level to award the support criterion.
+
+    Returns:
+        df with added columns:
+            crit_trend, crit_price_ma, crit_rsi, crit_macd, crit_support (bool/NaN)
+            technical_score (int 0-5)
+    """
+    df = df.copy()
+
+    df["crit_trend"]    = df["SMA20"] > df["SMA50"]
+    df["crit_price_ma"] = df["Close"] > df["SMA20"]
+    df["crit_rsi"]      = (df["RSI14"] > 30) & (df["RSI14"] < 70)
+    df["crit_macd"]     = df["MACD"] > df["MACD_Signal"]
+
+    if pivot_lows is not None and not pivot_lows.empty:
+        # For each trading day find the most recent prior pivot low price
+        pivot_low_series = pivot_lows["Close"].sort_index()
+
+        def _nearest_prior_support(date):
+            prior = pivot_low_series[pivot_low_series.index <= date]
+            return prior.iloc[-1] if not prior.empty else float("nan")
+
+        nearest_support = df.index.map(_nearest_prior_support)
+        nearest_support = pd.Series(nearest_support, index=df.index, dtype=float)
+
+        # Within 5% above support: support <= Close <= support * (1 + pct)
+        df["crit_support"] = (
+            (df["Close"] >= nearest_support) &
+            (df["Close"] <= nearest_support * (1 + support_proximity_pct))
+        )
+    else:
+        df["crit_support"] = float("nan")
+
+    crit_cols = ["crit_trend", "crit_price_ma", "crit_rsi", "crit_macd", "crit_support"]
+    df["technical_score"] = (
+        df[crit_cols]
+        .apply(pd.to_numeric, errors="coerce")
+        .sum(axis=1, skipna=True)
+        .astype(int)
+    )
+
+    return df
+
+
 if __name__ == "__main__":
     from data_collection import fetch_ohlcv
 
@@ -100,3 +173,21 @@ if __name__ == "__main__":
     pd.set_option("display.max_columns", 20)
     pd.set_option("display.width", 120)
     print(df[["Close"] + indicator_cols].tail(10).to_string())
+
+    # --- Technical score ---
+    import sys, os
+    sys.path.insert(0, os.path.dirname(__file__))
+    from support_resistance import find_support_resistance
+
+    _, pivot_lows = find_support_resistance(df, order=5)
+    df = calculate_technical_score(df, pivot_lows=pivot_lows)
+
+    score_cols = [
+        "Close", "SMA20", "SMA50", "RSI14", "MACD", "MACD_Signal",
+        "crit_trend", "crit_price_ma", "crit_rsi", "crit_macd", "crit_support",
+        "technical_score",
+    ]
+    print("\n=== Technical score — last 10 rows ===")
+    pd.set_option("display.max_columns", 15)
+    pd.set_option("display.width", 160)
+    print(df[score_cols].tail(10).to_string())
