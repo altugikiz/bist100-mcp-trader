@@ -10,6 +10,12 @@ import numpy as np
 
 sys.path.insert(0, os.path.dirname(__file__))
 
+from config import (
+    SYMBOL, BACKTEST_START, BACKTEST_END,
+    CURRENT_PRICE, SHARES_OUTSTANDING, SECTOR_AVG_PE,
+    BUY_THRESHOLD, SELL_THRESHOLD, TECH_WEIGHT, FUND_WEIGHT,
+    FUNDAMENTAL_CSV_PATH,
+)
 from data_collection import fetch_ohlcv
 from indicators import (
     calculate_sma, calculate_ema, calculate_rsi,
@@ -165,14 +171,14 @@ def generate_signal(
 
 
 def build_full_pipeline(
-    ticker: str = "ASELS.IS",
-    start: str = "2024-01-01",
-    end: str = "2025-12-31",
-    current_price: float = 372.50,
-    shares_outstanding: float = 4_560_000_000,
-    sector_avg_pe: float = 65.6,
-    buy_threshold: float = 3.5,
-    sell_threshold: float = 1.5,
+    ticker: str = SYMBOL,
+    start: str = BACKTEST_START,
+    end: str = BACKTEST_END,
+    current_price: float = CURRENT_PRICE,
+    shares_outstanding: float = SHARES_OUTSTANDING,
+    sector_avg_pe: float = SECTOR_AVG_PE,
+    buy_threshold: float = BUY_THRESHOLD,
+    sell_threshold: float = SELL_THRESHOLD,
 ) -> pd.DataFrame:
     """
     Run the full data → indicators → scores → signal pipeline and return the
@@ -191,8 +197,7 @@ def build_full_pipeline(
     tech_df = calculate_technical_score(price_df, pivot_lows=pivot_lows)
 
     # --- Fundamental data ---
-    csv_path = os.path.join(os.path.dirname(__file__), "..", "data", "fintables_asels.csv")
-    fund_df = load_fundamentals(csv_path)
+    fund_df = load_fundamentals(FUNDAMENTAL_CSV_PATH)
     fund_df = calculate_derived_ratios(fund_df)
     fund_df = calculate_market_multiples(fund_df, current_price, shares_outstanding)
     fund_df = calculate_yoy_growth(fund_df)
@@ -213,7 +218,7 @@ if __name__ == "__main__":
     df = build_full_pipeline()
 
     # Signal distribution
-    print("=== Signal distribution (2024-01-01 to 2025-12-31) ===")
+    print(f"=== Signal distribution ({BACKTEST_START} to {BACKTEST_END}) ===")
     dist = df["Signal"].value_counts().reindex(["BUY", "HOLD", "SELL"]).fillna(0).astype(int)
     total = len(df)
     for sig, cnt in dist.items():

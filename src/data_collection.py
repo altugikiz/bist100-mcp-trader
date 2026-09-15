@@ -5,6 +5,7 @@ Fetches historical OHLCV data using yfinance.
 
 import yfinance as yf
 import pandas as pd
+from config import SYMBOL, START_DATE, END_DATE
 
 
 def fetch_ohlcv(ticker: str, start: str, end: str) -> pd.DataFrame:
@@ -49,9 +50,5 @@ def summarise(df: pd.DataFrame) -> None:
 
 
 if __name__ == "__main__":
-    TICKER = "ASELS.IS"
-    START  = "2023-01-01"
-    END    = "2026-01-01"
-
-    df = fetch_ohlcv(TICKER, START, END)
+    df = fetch_ohlcv(SYMBOL, START_DATE, END_DATE)
     summarise(df)

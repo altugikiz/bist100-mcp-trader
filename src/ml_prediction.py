@@ -29,16 +29,12 @@ from fundamental_analysis import (
 )
 from strategy import _QUARTER_END
 from backtest import run_backtest, calculate_performance, _max_drawdown, _sharpe_ratio
-
-
-# ---------------------------------------------------------------------------
-# Constants
-# ---------------------------------------------------------------------------
-
-_CSV_PATH          = os.path.join(os.path.dirname(__file__), "..", "data", "fintables_asels.csv")
-CURRENT_PRICE      = 372.50
-SHARES_OUTSTANDING = 4_560_000_000
-SECTOR_AVG_PE      = 65.6
+from config import (
+    SYMBOL, BENCHMARK_SYMBOL,
+    START_DATE, END_DATE,
+    CURRENT_PRICE, SHARES_OUTSTANDING, SECTOR_AVG_PE,
+    FUNDAMENTAL_CSV_PATH as _CSV_PATH,
+)
 
 
 def _period_to_date(period: str) -> pd.Timestamp:
@@ -392,10 +388,8 @@ if __name__ == "__main__":
     pd.set_option("display.max_columns", 20)
     pd.set_option("display.width", 140)
 
-    START, END = "2023-01-01", "2026-01-01"
-
     print("Fetching ASELS price data …")
-    price_df = fetch_ohlcv("ASELS.IS", START, END)
+    price_df = fetch_ohlcv(SYMBOL, START_DATE, END_DATE)
     price_df["SMA20"] = calculate_sma(price_df, 20)
     price_df["SMA50"] = calculate_sma(price_df, 50)
     price_df["RSI14"] = calculate_rsi(price_df, 14)
@@ -409,7 +403,7 @@ if __name__ == "__main__":
     fund_df = calculate_fundamental_score(fund_df, sector_avg_pe=SECTOR_AVG_PE)
 
     print("Fetching BIST100 …")
-    raw_bist = yf.download("XU100.IS", start=START, end=END,
+    raw_bist = yf.download(BENCHMARK_SYMBOL, start=START_DATE, end=END_DATE,
                            auto_adjust=True, progress=False)
     if isinstance(raw_bist.columns, pd.MultiIndex):
         raw_bist.columns = raw_bist.columns.get_level_values(0)

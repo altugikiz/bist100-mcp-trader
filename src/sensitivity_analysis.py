@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 
 sys.path.insert(0, os.path.dirname(__file__))
 
+from config import BACKTEST_START, BACKTEST_END, SELL_THRESHOLD, RESULTS_DIR
 from strategy import build_full_pipeline, combine_scores, generate_signal
 from backtest import run_backtest, calculate_performance
 
@@ -18,7 +19,7 @@ from backtest import run_backtest, calculate_performance
 # Shared pipeline data (fetched once, reused across all parameter sweeps)
 # ---------------------------------------------------------------------------
 
-def _load_base_data(start: str = "2024-01-01", end: str = "2025-12-31") -> tuple:
+def _load_base_data(start: str = BACKTEST_START, end: str = BACKTEST_END) -> tuple:
     """
     Build the full pipeline once and return the raw scored DataFrame plus the
     component DataFrames needed to reconstruct Total_Score with different weights.
@@ -81,7 +82,7 @@ def _run_scenario(
 def threshold_sensitivity(
     base_df: pd.DataFrame,
     buy_thresholds: list[float] = (3.0, 3.2, 3.5, 3.8),
-    sell_threshold: float = 1.5,
+    sell_threshold: float = SELL_THRESHOLD,
     tech_w: float = 0.50,
     fund_w: float = 0.40,
     macro_w: float = 0.10,
@@ -123,7 +124,7 @@ WEIGHT_CONFIGS = {
 def weight_sensitivity(
     base_df: pd.DataFrame,
     buy_threshold: float = 3.5,
-    sell_threshold: float = 1.5,
+    sell_threshold: float = SELL_THRESHOLD,
 ) -> pd.DataFrame:
     """
     Run the backtest for each weight configuration while keeping signal thresholds
@@ -261,7 +262,5 @@ if __name__ == "__main__":
     print_sensitivity_table(wgt_results, "TEST 2 — Weight Sensitivity (BUY=3.5, SELL=1.5)")
 
     # --- Chart ---
-    output = os.path.join(
-        os.path.dirname(__file__), "..", "results", "sensitivity_threshold.png"
-    )
+    output = os.path.join(RESULTS_DIR, "sensitivity_threshold.png")
     plot_threshold_sensitivity(thr_results, output)

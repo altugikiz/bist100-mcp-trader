@@ -12,6 +12,7 @@ import matplotlib.dates as mdates
 import yfinance as yf
 
 sys.path.insert(0, os.path.dirname(__file__))
+from config import SYMBOL, BENCHMARK_SYMBOL, BACKTEST_START, BACKTEST_END, RESULTS_DIR
 from strategy import build_full_pipeline
 
 
@@ -176,8 +177,11 @@ def plot_equity_curves(
     ax.xaxis.set_major_locator(mdates.MonthLocator(interval=2))
     plt.xticks(rotation=45)
 
-    ax.set_title("ASELS.IS Strategy vs Benchmarks — Equity Curves (2024-01-01 → 2025-12-31)",
-                 fontsize=13)
+    ax.set_title(
+        f"{SYMBOL} Strategy vs Benchmarks — Equity Curves "
+        f"({BACKTEST_START} → {BACKTEST_END})",
+        fontsize=13,
+    )
     ax.set_xlabel("Date")
     ax.set_ylabel("Normalised Equity (start = 1.0)")
     ax.legend(loc="upper left")
@@ -229,22 +233,19 @@ def print_performance_table(metrics_list: list[dict]) -> None:
 
 
 if __name__ == "__main__":
-    START = "2024-01-01"
-    END   = "2025-12-31"
-
     pd.set_option("display.float_format", "{:.4f}".format)
     pd.set_option("display.max_columns", 15)
     pd.set_option("display.width", 140)
 
     print("Building strategy pipeline …")
-    signal_df = build_full_pipeline(start=START, end=END)
+    signal_df = build_full_pipeline()
 
     print("Running backtest …")
     bt = run_backtest(signal_df)
 
     # BIST100 benchmark
     print("Fetching BIST100 benchmark …")
-    bist100_equity = fetch_benchmark("XU100.IS", START, END).reindex(bt.index).ffill()
+    bist100_equity = fetch_benchmark(BENCHMARK_SYMBOL, BACKTEST_START, BACKTEST_END).reindex(bt.index).ffill()
 
     # Performance metrics
     strat_metrics = calculate_performance(bt, label="Strategy")
@@ -285,5 +286,5 @@ if __name__ == "__main__":
     print(bt[display_cols].tail(15).to_string())
 
     # Equity curve chart
-    output = os.path.join(os.path.dirname(__file__), "..", "results", "backtest_equity_curve.png")
+    output = os.path.join(RESULTS_DIR, "backtest_equity_curve.png")
     plot_equity_curves(bt["equity"], bt["bah_equity"], bist100_equity, output)

@@ -38,20 +38,15 @@ from fundamental_analysis import (
 )
 from strategy import build_full_pipeline, generate_signal
 from backtest import run_backtest, calculate_performance
-
-
-# ---------------------------------------------------------------------------
-# Constants
-# ---------------------------------------------------------------------------
-
-DEFAULT_TICKER   = "ASELS.IS"
-DEFAULT_START    = "2023-01-01"
-DEFAULT_END      = "2026-01-01"
-CURRENT_PRICE    = 372.50
-SHARES_OUTSTANDING = 4_560_000_000
-SECTOR_AVG_PE    = 65.6
-
-_CSV_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "fintables_asels.csv")
+from config import (
+    SYMBOL as DEFAULT_TICKER,
+    START_DATE as DEFAULT_START,
+    END_DATE as DEFAULT_END,
+    BACKTEST_START, BACKTEST_END,
+    CURRENT_PRICE, SHARES_OUTSTANDING, SECTOR_AVG_PE,
+    BUY_THRESHOLD, SELL_THRESHOLD, TECH_WEIGHT, FUND_WEIGHT,
+    FUNDAMENTAL_CSV_PATH as _CSV_PATH,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -336,12 +331,12 @@ def get_fundamental_score(period: str = "2025Q4") -> dict:
 
 @mcp.tool()
 def run_backtest_summary(
-    start: str = "2024-01-01",
-    end: str = "2025-12-31",
-    buy_threshold: float = 3.0,
-    sell_threshold: float = 1.5,
-    tech_weight: float = 0.50,
-    fund_weight: float = 0.50,
+    start: str = BACKTEST_START,
+    end: str = BACKTEST_END,
+    buy_threshold: float = BUY_THRESHOLD,
+    sell_threshold: float = SELL_THRESHOLD,
+    tech_weight: float = TECH_WEIGHT,
+    fund_weight: float = FUND_WEIGHT,
 ) -> dict:
     """
     Run the full strategy pipeline (technical + fundamental scoring → signal
