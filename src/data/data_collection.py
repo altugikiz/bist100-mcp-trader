@@ -4,11 +4,15 @@ Fetches historical OHLCV data using yfinance.
 """
 
 import os
+import sys
 import time
 import yfinance as yf
 import pandas as pd
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 from config import SYMBOL, START_DATE, END_DATE
-from universe import UNIVERSE
+from data.universe import UNIVERSE
 
 
 def fetch_ohlcv(ticker: str, start: str, end: str) -> pd.DataFrame:
