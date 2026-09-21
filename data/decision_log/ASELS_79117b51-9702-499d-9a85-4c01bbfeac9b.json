@@ -1,0 +1,362 @@
+{
+  "session_id": "79117b51-9702-499d-9a85-4c01bbfeac9b",
+  "ticker": "ASELS",
+  "sector_group": "Technology-Defense",
+  "analysis_timestamp": "2026-09-21T17:18:44+00:00",
+  "market_data_period": {
+    "start": "2023-01-02",
+    "end": "2025-12-31"
+  },
+  "data_versions": {
+    "price_data": "as of 2025-12-31",
+    "fundamentals": "2025Q3"
+  },
+  "tool_calls": [
+    {
+      "timestamp": "2026-09-21T17:18:44+00:00",
+      "state": "SELECT_UNIVERSE",
+      "tool_name": "has_sector_peers",
+      "input_summary": "ticker=ASELS",
+      "output_summary": "in_universe=True"
+    },
+    {
+      "timestamp": "2026-09-21T17:18:44+00:00",
+      "state": "LOAD_MARKET_DATA",
+      "tool_name": "get_stock_history",
+      "input_summary": "ticker=ASELS.IS  rows=749",
+      "output_summary": "start=2023-01-02  end=2025-12-31"
+    },
+    {
+      "timestamp": "2026-09-21T17:18:44+00:00",
+      "state": "CHECK_DATA_QUALITY",
+      "tool_name": "check_data_quality",
+      "input_summary": "ticker=ASELS",
+      "output_summary": "Close_NaN=0.0%  rows=749"
+    },
+    {
+      "timestamp": "2026-09-21T17:18:44+00:00",
+      "state": "CALCULATE_TECHNICALS",
+      "tool_name": "calculate_technical_score",
+      "input_summary": "ticker=ASELS as_of=2025-12-31",
+      "output_summary": "score=3/5  KAMA=rising"
+    },
+    {
+      "timestamp": "2026-09-21T17:18:44+00:00",
+      "state": "RUN_SECTOR_RELATIVE_ANALYSIS",
+      "tool_name": "rank_universe_by_sector",
+      "input_summary": "date=2025-12-31",
+      "output_summary": "lag_20d=0.234  catchup=False"
+    },
+    {
+      "timestamp": "2026-09-21T17:18:44+00:00",
+      "state": "RUN_PATTERN_AND_REVERSAL_ANALYSIS",
+      "tool_name": "build_event_log",
+      "input_summary": "ticker=ASELS",
+      "output_summary": "event_types=13"
+    },
+    {
+      "timestamp": "2026-09-21T17:18:44+00:00",
+      "state": "LOAD_FUNDAMENTALS",
+      "tool_name": "calculate_fundamental_score",
+      "input_summary": "ticker=ASELS safe_quarter=2025Q3",
+      "output_summary": "score=4/5"
+    },
+    {
+      "timestamp": "2026-09-21T17:18:44+00:00",
+      "state": "LOAD_MACRO_CONTEXT",
+      "tool_name": "build_daily_macro_series",
+      "input_summary": "end=2025-12-31",
+      "output_summary": "tcmb=38.0%  usdtry=42.95"
+    },
+    {
+      "timestamp": "2026-09-21T17:18:44+00:00",
+      "state": "BUILD_EVIDENCE",
+      "tool_name": "build_evidence_bundle",
+      "input_summary": "ticker=ASELS",
+      "output_summary": "committed=10  gate=PASS_WITH_WARNINGS"
+    },
+    {
+      "timestamp": "2026-09-21T17:18:44+00:00",
+      "state": "GENERATE_EXPLANATION",
+      "tool_name": "generate_explanation",
+      "input_summary": "ticker=ASELS",
+      "output_summary": "action=WATCH"
+    }
+  ],
+  "state_history": [
+    {
+      "timestamp": "2026-09-21T17:18:44+00:00",
+      "state": "START"
+    },
+    {
+      "timestamp": "2026-09-21T17:18:44+00:00",
+      "state": "SELECT_UNIVERSE"
+    },
+    {
+      "timestamp": "2026-09-21T17:18:44+00:00",
+      "state": "LOAD_MARKET_DATA"
+    },
+    {
+      "timestamp": "2026-09-21T17:18:44+00:00",
+      "state": "CHECK_DATA_QUALITY"
+    },
+    {
+      "timestamp": "2026-09-21T17:18:44+00:00",
+      "state": "CALCULATE_TECHNICALS"
+    },
+    {
+      "timestamp": "2026-09-21T17:18:44+00:00",
+      "state": "RUN_SECTOR_RELATIVE_ANALYSIS"
+    },
+    {
+      "timestamp": "2026-09-21T17:18:44+00:00",
+      "state": "RUN_PATTERN_AND_REVERSAL_ANALYSIS"
+    },
+    {
+      "timestamp": "2026-09-21T17:18:44+00:00",
+      "state": "LOAD_FUNDAMENTALS"
+    },
+    {
+      "timestamp": "2026-09-21T17:18:44+00:00",
+      "state": "LOAD_MACRO_CONTEXT"
+    },
+    {
+      "timestamp": "2026-09-21T17:18:44+00:00",
+      "state": "LOAD_NEWS_AND_SPEECH_CONTEXT"
+    },
+    {
+      "timestamp": "2026-09-21T17:18:44+00:00",
+      "state": "BUILD_EVIDENCE"
+    },
+    {
+      "timestamp": "2026-09-21T17:18:44+00:00",
+      "state": "PREVIEW_STRATEGIES"
+    },
+    {
+      "timestamp": "2026-09-21T17:18:44+00:00",
+      "state": "RUN_BACKTEST"
+    },
+    {
+      "timestamp": "2026-09-21T17:18:44+00:00",
+      "state": "RISK_GATE"
+    },
+    {
+      "timestamp": "2026-09-21T17:18:44+00:00",
+      "state": "GENERATE_EXPLANATION"
+    },
+    {
+      "timestamp": "2026-09-21T17:18:44+00:00",
+      "state": "HUMAN_REVIEW"
+    }
+  ],
+  "observed_context": {
+    "technical": {
+      "technical_score": 3,
+      "KAMA_Slope": "rising",
+      "Supertrend_Direction": "bullish",
+      "Ichimoku_State": null,
+      "RSI14": 70.8602933292166
+    },
+    "fundamental": {
+      "net_profit_growth_qoq": 0.6921115854831748,
+      "revenue_growth_qoq": 0.5738260993389649,
+      "prev_net_profit_growth_qoq": 1.6559560946486271,
+      "prev_revenue_growth_qoq": 1.2231211985729364,
+      "roe": 0.2163473294985145,
+      "net_debt_ebitda": 0.23916996128633392,
+      "fundamental_score": 4
+    },
+    "sector": {
+      "sector_group": "Technology-Defense",
+      "benchmark_type": "xu100_fallback",
+      "lag_score_5d": 0.033712379641100854,
+      "lag_score_10d": 0.1604287294014155,
+      "lag_score_20d": 0.23396287298110474,
+      "intra_group_rank": 1,
+      "potential_catchup_flag": false
+    },
+    "events": {
+      "bearish_kama_cross": {
+        "n": 66,
+        "bounce_rate_5d": 0.5757575757575758,
+        "avg_fwd_5d": 0.014607744399196813,
+        "days_since_last": 14
+      },
+      "bullish_kama_cross": {
+        "n": 66,
+        "bounce_rate_5d": 0.4696969696969697,
+        "avg_fwd_5d": 0.006685944387758574,
+        "days_since_last": 13
+      },
+      "cloud_breakdown": {
+        "n": 26,
+        "bounce_rate_5d": 0.6538461538461539,
+        "avg_fwd_5d": 0.020260904388892494,
+        "days_since_last": 56
+      },
+      "cloud_breakout": {
+        "n": 45,
+        "bounce_rate_5d": 0.5333333333333333,
+        "avg_fwd_5d": 0.0163750463856115,
+        "days_since_last": 65
+      },
+      "cloud_entry": {
+        "n": 14,
+        "bounce_rate_5d": 0.5714285714285714,
+        "avg_fwd_5d": 0.019826985064129794,
+        "days_since_last": 210
+      },
+      "cloud_rejection": {
+        "n": 46,
+        "bounce_rate_5d": 0.5434782608695652,
+        "avg_fwd_5d": 0.023609164509784685,
+        "days_since_last": 61
+      },
+      "lower_band_touch": {
+        "n": 26,
+        "bounce_rate_5d": 0.5769230769230769,
+        "avg_fwd_5d": 0.004564561928998646,
+        "days_since_last": 50
+      },
+      "middle_band_test": {
+        "n": 92,
+        "bounce_rate_5d": 0.5434782608695652,
+        "avg_fwd_5d": 0.005006181318620237,
+        "days_since_last": 27
+      },
+      "rsi_peak": {
+        "n": 76,
+        "bounce_rate_5d": 0.3026315789473684,
+        "avg_fwd_5d": -0.022752852102915028,
+        "days_since_last": 7
+      },
+      "rsi_trough": {
+        "n": 75,
+        "bounce_rate_5d": 0.8533333333333334,
+        "avg_fwd_5d": 0.054041331694448316,
+        "days_since_last": 14
+      },
+      "supertrend_flip_bearish": {
+        "n": 9,
+        "bounce_rate_5d": 0.7777777777777778,
+        "avg_fwd_5d": 0.02672445017029272,
+        "days_since_last": 75
+      },
+      "supertrend_flip_bullish": {
+        "n": 10,
+        "bounce_rate_5d": 0.7,
+        "avg_fwd_5d": 0.04017922596137707,
+        "days_since_last": 22
+      },
+      "upper_band_touch": {
+        "n": 73,
+        "bounce_rate_5d": 0.6712328767123288,
+        "avg_fwd_5d": 0.02531292644093705,
+        "days_since_last": 16
+      }
+    },
+    "macro": {
+      "usdtry": 42.95198059082031,
+      "eurtry": 50.600608825683594,
+      "tcmb_rate": 38.0,
+      "tufe_yoy": 30.89,
+      "fed_rate": 3.75,
+      "usdtry_30d_ago": 42.46950149536133,
+      "as_of": "2025-12-31"
+    }
+  },
+  "committed_evidence": [
+    {
+      "id": "E1",
+      "statement": "Technical score: 3/5",
+      "source_tool": "calculate_technical_score",
+      "value": 3
+    },
+    {
+      "id": "E2",
+      "statement": "KAMA slope turned positive (rising) — early uptrend signal",
+      "source_tool": "calculate_kama",
+      "value": "rising"
+    },
+    {
+      "id": "E3",
+      "statement": "Supertrend direction is bullish — trend confirmation",
+      "source_tool": "calculate_supertrend",
+      "value": "bullish"
+    },
+    {
+      "id": "E4",
+      "statement": "Stock is 23.4 pp ahead of XU100 over the last 20 trading days (leader)",
+      "source_tool": "rank_universe_by_sector",
+      "value": 0.23396287298110474
+    },
+    {
+      "id": "E5",
+      "statement": "Net profit improved by 69.2% QoQ",
+      "source_tool": "calculate_quarterly_changes",
+      "value": 0.6921115854831748
+    },
+    {
+      "id": "E6",
+      "statement": "Revenue grew by 57.4% QoQ",
+      "source_tool": "calculate_quarterly_changes",
+      "value": 0.5738260993389649
+    },
+    {
+      "id": "E7",
+      "statement": "Net Debt/EBITDA (TTM): 0.24x",
+      "source_tool": "calculate_derived_ratios",
+      "value": 0.23916996128633392
+    },
+    {
+      "id": "E8",
+      "statement": "Lower Band Touch: 57.7% bounce rate within 5 days (n=26)",
+      "source_tool": "build_event_log",
+      "value": {
+        "bounce_rate_5d": 0.5769230769230769,
+        "n": 26
+      }
+    },
+    {
+      "id": "E9",
+      "statement": "Rsi Trough: 85.3% bounce rate within 5 days (n=75)",
+      "source_tool": "build_event_log",
+      "value": {
+        "bounce_rate_5d": 0.8533333333333334,
+        "n": 75
+      }
+    },
+    {
+      "id": "E10",
+      "statement": "Macro regime: TCMB rate 38.00%; TRY weakened 1.1% vs. USD over last 30 days; TÜİK CPI YoY ≈ 30.9%",
+      "source_tool": "build_daily_macro_series",
+      "value": {
+        "tcmb_rate": 38.0,
+        "usdtry": 42.95198059082031,
+        "try_30d_chg_%": 1.1360601807668558,
+        "tufe_yoy": 30.89
+      }
+    }
+  ],
+  "gate_result": {
+    "status": "PASS_WITH_WARNINGS",
+    "warnings": [
+      "'ASELS' has no sector peers — benchmark falls back to XU100. Sector-relative analysis will be less informative."
+    ],
+    "blocks": []
+  },
+  "action_result": {
+    "action": "WATCH",
+    "reasoning": [
+      "[soft-warning] 'ASELS' has no sector peers — benchmark falls back to XU100. Sector-relative analysis will be less informative.",
+      "Technical score=3/5 — borderline, worth monitoring."
+    ],
+    "timestamp": "2026-09-21T17:18:44+00:00"
+  },
+  "human_review": {
+    "result": "ACCEPT",
+    "reason": "Evidence is well-supported. WATCH is an appropriate conservative label given mixed signals: strong sector leadership and robust fundamentals (4/5) are offset by borderline technical score (3/5) and no sign-flip in QoQ growth metrics.",
+    "reviewer_note": "",
+    "reviewed_at": "2026-09-21T17:18:44+00:00"
+  }
+}
