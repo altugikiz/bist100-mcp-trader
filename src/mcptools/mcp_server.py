@@ -22,25 +22,27 @@ import math
 import contextlib
 
 # Ensure sibling modules are importable when launched from any working directory
-sys.path.insert(0, os.path.dirname(__file__))
+_SRC      = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+_PROJ_ROOT = os.path.abspath(os.path.join(_SRC, '..'))
+sys.path.insert(0, _SRC)
 
 import numpy as np
 import pandas as pd
 from mcp.server.fastmcp import FastMCP
 
-from data_collection import fetch_ohlcv
-from indicators import (
+from data.data_collection import fetch_ohlcv
+from analysis.indicators import (
     calculate_sma, calculate_rsi, calculate_macd, calculate_technical_score,
     calculate_bollinger_bands, calculate_kama, calculate_supertrend, calculate_ichimoku,
 )
-from support_resistance import find_support_resistance
-from fundamental_analysis import (
+from analysis.support_resistance import find_support_resistance
+from analysis.fundamental_analysis import (
     load_fundamentals, calculate_derived_ratios,
     calculate_market_multiples, calculate_yoy_growth,
     calculate_fundamental_score as _calc_fund_score,
 )
-from strategy import build_full_pipeline, generate_signal
-from backtest import run_backtest, calculate_performance
+from strategy.strategy import build_full_pipeline, generate_signal
+from strategy.backtest import run_backtest, calculate_performance
 from config import (
     SYMBOL as DEFAULT_TICKER,
     START_DATE as DEFAULT_START,
@@ -50,18 +52,18 @@ from config import (
     BUY_THRESHOLD, SELL_THRESHOLD, TECH_WEIGHT, FUND_WEIGHT,
     FUNDAMENTAL_CSV_PATH as _CSV_PATH,
 )
-from universe import UNIVERSE
-from sector_analysis import rank_universe_by_sector
-from reversal_events import build_event_log
-from fundamental_reaction import calculate_quarterly_changes
-from point_in_time import build_point_in_time_fundamentals
-from evidence import build_evidence_bundle, RiskGate
-from action_space import determine_action
-from decision_log import log_decision, add_human_review, load_decision_log, replay_analysis
-from harness import AnalysisSession, advance_state, record_tool_call
+from data.universe import UNIVERSE
+from analysis.sector_analysis import rank_universe_by_sector
+from analysis.reversal_events import build_event_log
+from analysis.fundamental_reaction import calculate_quarterly_changes
+from analysis.point_in_time import build_point_in_time_fundamentals
+from harness.evidence import build_evidence_bundle, RiskGate
+from harness.action_space import determine_action
+from harness.decision_log import log_decision, add_human_review, load_decision_log, replay_analysis
+from harness.harness import AnalysisSession, advance_state, record_tool_call
 
-_CACHE_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "universe_cache")
-_LOG_DIR   = os.path.join(os.path.dirname(__file__), "..", "data", "decision_log")
+_CACHE_DIR = os.path.join(_PROJ_ROOT, "data", "universe_cache")
+_LOG_DIR   = os.path.join(_PROJ_ROOT, "data", "decision_log")
 
 # In-memory session store: session_id -> {"session": AnalysisSession, ...}
 _SESSIONS: dict = {}
@@ -479,7 +481,7 @@ def _build_fundamental_result(ticker: str, safe_quarter: str) -> dict:
 
 def _build_macro_snapshot(snap_date: pd.Timestamp) -> dict:
     """Read daily macro CSV and return a snapshot dict for snap_date."""
-    macro_path = os.path.join(os.path.dirname(__file__), "..", "data", "macro", "macro_daily.csv")
+    macro_path = os.path.join(_PROJ_ROOT, "data", "macro", "macro_daily.csv")
     macro  = pd.read_csv(macro_path, index_col="Date", parse_dates=True)
     snap   = macro.loc[snap_date]
     snap30 = macro.loc[snap_date - pd.Timedelta(days=30)]
@@ -999,8 +1001,8 @@ if __name__ == "__main__":
     print("BONUS — check_data_quality: scoped vs. full-scan comparison")
     print(SEP)
 
-    from evidence import RiskGate, build_evidence_bundle
-    from point_in_time import build_point_in_time_fundamentals
+    from harness.evidence import RiskGate, build_evidence_bundle
+    from analysis.point_in_time import build_point_in_time_fundamentals
     from fundamental_analysis import load_fundamentals
 
     store2  = _SESSIONS[sid]
