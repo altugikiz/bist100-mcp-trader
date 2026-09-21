@@ -23,22 +23,46 @@ A CSE-481 Engineering Economics term project that performs end-to-end quantitati
 ```
 bist100-mcp-trader/
 ├── data/
-│   └── fintables_asels.csv        # Quarterly fundamental data (8 quarters, 2024Q1–2025Q4)
+│   ├── fintables_asels.csv           # Quarterly fundamental data (8 quarters, 2024Q1–2025Q4)
+│   ├── fundamentals/                 # Per-ticker fundamental CSVs
+│   ├── universe_cache/               # Cached daily OHLCV CSVs (one per ticker)
+│   ├── macro/                        # Macro series (TCMB rate, USD/TRY, CPI)
+│   ├── events/                       # Event logs and harness comparison outputs
+│   └── decision_log/                 # Per-session JSON audit logs
 ├── results/
-│   ├── support_resistance.png     # Pivot high/low chart
-│   ├── backtest_equity_curve.png  # Equity curves — original config (BUY=3.5)
-│   ├── final_equity_curve.png     # Equity curves — final config (BUY=3.0)
-│   └── sensitivity_threshold.png  # BUY threshold sensitivity chart
+│   ├── support_resistance.png        # Pivot high/low chart
+│   ├── backtest_equity_curve.png     # Equity curves — original config (BUY=3.5)
+│   ├── final_equity_curve.png        # Equity curves — final config (BUY=3.0)
+│   └── sensitivity_threshold.png     # BUY threshold sensitivity chart
 ├── src/
-│   ├── data_collection.py         # Fetches daily OHLCV data from Yahoo Finance
-│   ├── indicators.py              # SMA, EMA, RSI, MACD, and technical score (0–5)
-│   ├── support_resistance.py      # Pivot-based support/resistance detection and chart
-│   ├── fundamental_analysis.py    # Loads CSV, computes derived ratios and fundamental score
-│   ├── strategy.py                # Combines scores into Total Score and generates signals
-│   ├── backtest.py                # Chronological backtest, performance metrics, equity curves
-│   ├── sensitivity_analysis.py    # Threshold and weight sweep with comparison tables
-│   ├── ml_prediction.py           # ML feature engineering, model training, and evaluation
-│   └── mcp_server.py              # MCP server exposing six analysis tools via FastMCP
+│   ├── config.py                     # Central constants (tickers, paths, thresholds)
+│   ├── data/
+│   │   ├── universe.py               # 30-stock universe definition
+│   │   └── data_collection.py        # Fetches daily OHLCV data from Yahoo Finance
+│   ├── analysis/
+│   │   ├── indicators.py             # SMA, EMA, RSI, MACD, Bollinger, KAMA, Supertrend, Ichimoku
+│   │   ├── support_resistance.py     # Pivot-based support/resistance detection
+│   │   ├── fundamental_analysis.py   # Loads CSV, computes derived ratios and fundamental score
+│   │   ├── reversal_events.py        # Technical reversal event detection and statistics
+│   │   ├── sector_analysis.py        # Sector-relative ranking and benchmark comparison
+│   │   ├── calendar_patterns.py      # Day-of-week and seasonal return patterns
+│   │   ├── point_in_time.py          # Point-in-time fundamental alignment (anti-look-ahead)
+│   │   ├── fundamental_reaction.py   # Post-earnings price reactions and QoQ changes
+│   │   ├── macro_context.py          # Macro regime data (TCMB rate, USD/TRY, CPI)
+│   │   └── news_events.py            # Curated news events and post-news return analysis
+│   ├── strategy/
+│   │   ├── strategy.py               # Combines scores into Total Score and generates signals
+│   │   ├── backtest.py               # Walk-forward backtest with transaction costs
+│   │   ├── sensitivity_analysis.py   # Threshold and weight sensitivity sweep
+│   │   └── ml_prediction.py          # ML feature engineering, model training, and evaluation
+│   ├── harness/
+│   │   ├── harness.py                # 17-state analysis state machine and tool enforcement
+│   │   ├── evidence.py               # EvidenceBundle and RiskGate data-quality checks
+│   │   ├── action_space.py           # 8-label action space and decision tree
+│   │   ├── decision_log.py           # JSON audit log: record, load, replay, human review
+│   │   └── harness_experiments.py    # Harness versions A–E comparison experiment
+│   └── mcptools/
+│       └── mcp_server.py             # MCP server exposing 11 tools via FastMCP (stdio)
 ├── requirements.txt
 └── README.md
 ```
@@ -78,31 +102,34 @@ Run each module independently from the project root:
 
 ```bash
 # Fetch and preview OHLCV data
-python src/data_collection.py
+python src/data/data_collection.py
 
 # Compute and display technical indicators
-python src/indicators.py
+python src/analysis/indicators.py
 
 # Detect support/resistance levels and save chart
-python src/support_resistance.py
+python src/analysis/support_resistance.py
 
 # Load fundamental data and compute derived ratios
-python src/fundamental_analysis.py
+python src/analysis/fundamental_analysis.py
 
 # Build combined score and generate signals
-python src/strategy.py
+python src/strategy/strategy.py
 
 # Run full backtest and plot equity curves
-python src/backtest.py
+python src/strategy/backtest.py
 
 # Run threshold and weight sensitivity sweep
-python src/sensitivity_analysis.py
+python src/strategy/sensitivity_analysis.py
 
 # Train and evaluate ML models
-python src/ml_prediction.py
+python src/strategy/ml_prediction.py
 
 # Start MCP server (stdio transport — used by Claude Desktop)
-python src/mcp_server.py
+python src/mcptools/mcp_server.py
+
+# Run 5-step end-to-end test (ASELS, no server needed)
+python src/mcptools/mcp_server.py --test
 ```
 
 ---
@@ -119,7 +146,7 @@ Add the following entry to your `claude_desktop_config.json`:
   "mcpServers": {
     "bist-analytics": {
       "command": "<your-path>/venv/bin/python",
-      "args": ["<your-path>/src/mcp_server.py"],
+      "args": ["<your-path>/src/mcptools/mcp_server.py"],
       "cwd": "<your-path>"
     }
   }
