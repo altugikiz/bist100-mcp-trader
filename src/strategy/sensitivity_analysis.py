@@ -8,11 +8,11 @@ import sys
 import pandas as pd
 import matplotlib.pyplot as plt
 
-sys.path.insert(0, os.path.dirname(__file__))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from config import BACKTEST_START, BACKTEST_END, SELL_THRESHOLD, RESULTS_DIR
-from strategy import build_full_pipeline, combine_scores, generate_signal
-from backtest import run_backtest, calculate_performance
+from strategy.strategy import build_full_pipeline, combine_scores, generate_signal
+from strategy.backtest import run_backtest, calculate_performance
 
 
 # ---------------------------------------------------------------------------

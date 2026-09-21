@@ -17,18 +17,18 @@ from sklearn.metrics import (
 )
 
 warnings.filterwarnings("ignore")
-sys.path.insert(0, os.path.dirname(__file__))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from data_collection import fetch_ohlcv
-from indicators import calculate_sma, calculate_rsi, calculate_macd
-from support_resistance import find_support_resistance
-from fundamental_analysis import (
+from data.data_collection import fetch_ohlcv
+from analysis.indicators import calculate_sma, calculate_rsi, calculate_macd
+from analysis.support_resistance import find_support_resistance
+from analysis.fundamental_analysis import (
     load_fundamentals, calculate_derived_ratios,
     calculate_market_multiples, calculate_yoy_growth,
     calculate_fundamental_score,
 )
-from strategy import _QUARTER_END
-from backtest import run_backtest, calculate_performance, _max_drawdown, _sharpe_ratio
+from strategy.strategy import _QUARTER_END
+from strategy.backtest import run_backtest, calculate_performance, _max_drawdown, _sharpe_ratio
 from config import (
     SYMBOL, BENCHMARK_SYMBOL,
     START_DATE, END_DATE,

@@ -8,7 +8,7 @@ import sys
 import pandas as pd
 import numpy as np
 
-sys.path.insert(0, os.path.dirname(__file__))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from config import (
     SYMBOL, BACKTEST_START, BACKTEST_END,
@@ -16,13 +16,13 @@ from config import (
     BUY_THRESHOLD, SELL_THRESHOLD, TECH_WEIGHT, FUND_WEIGHT,
     FUNDAMENTAL_CSV_PATH,
 )
-from data_collection import fetch_ohlcv
-from indicators import (
+from data.data_collection import fetch_ohlcv
+from analysis.indicators import (
     calculate_sma, calculate_ema, calculate_rsi,
     calculate_macd, calculate_technical_score,
 )
-from support_resistance import find_support_resistance
-from fundamental_analysis import (
+from analysis.support_resistance import find_support_resistance
+from analysis.fundamental_analysis import (
     load_fundamentals, calculate_derived_ratios,
     calculate_market_multiples, calculate_yoy_growth,
     calculate_fundamental_score,

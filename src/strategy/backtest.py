@@ -11,9 +11,9 @@ import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import yfinance as yf
 
-sys.path.insert(0, os.path.dirname(__file__))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from config import SYMBOL, BENCHMARK_SYMBOL, BACKTEST_START, BACKTEST_END, RESULTS_DIR
-from strategy import build_full_pipeline
+from strategy.strategy import build_full_pipeline
 
 
 # ---------------------------------------------------------------------------
