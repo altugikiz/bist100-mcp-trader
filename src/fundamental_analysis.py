@@ -7,21 +7,33 @@ import os
 import pandas as pd
 
 
-def load_fundamentals(csv_path: str) -> pd.DataFrame:
-    """
-    Load quarterly fundamental data from a CSV file.
+_FUND_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "fundamentals")
 
+
+def load_fundamentals(ticker: str) -> pd.DataFrame:
+    """
+    Load quarterly fundamental data for a ticker.
+
+    Reads from data/fundamentals/<TICKER>_fundamentals.csv.
     Lines starting with '#' are treated as comments and skipped.
     The 'period' column is kept as a string (e.g. '2024Q1').
     All numeric columns are coerced to float so empty cells become NaN.
 
     Args:
-        csv_path: Path to the CSV file (relative or absolute).
+        ticker: Short ticker code (e.g. 'ASELS').  Case-insensitive.
 
     Returns:
         DataFrame indexed by 'period' with float columns for all metrics.
+
+    Raises:
+        FileNotFoundError: If no fundamentals file exists for the ticker.
     """
-    df = pd.read_csv(csv_path, comment="#")
+    path = os.path.join(_FUND_DIR, f"{ticker.upper()}_fundamentals.csv")
+    if not os.path.exists(path):
+        raise FileNotFoundError(
+            f"No fundamentals file for '{ticker}'. Expected: {os.path.abspath(path)}"
+        )
+    df = pd.read_csv(path, comment="#")
 
     numeric_cols = [c for c in df.columns if c != "period"]
     df[numeric_cols] = df[numeric_cols].apply(pd.to_numeric, errors="coerce")
@@ -78,8 +90,11 @@ def calculate_derived_ratios(df: pd.DataFrame) -> pd.DataFrame:
     # --- Net Debt / EBITDA (period-end net debt, TTM EBITDA) ---
     df["net_debt_ebitda"] = df["net_debt"] / ttm_ebitda
 
-    # --- Debt / Equity (period-end balances) ---
-    df["debt_equity"] = df["financial_debt"] / df["shareholders_equity"]
+    # --- Debt / Equity (period-end balances; requires financial_debt column) ---
+    if "financial_debt" in df.columns:
+        df["debt_equity"] = df["financial_debt"] / df["shareholders_equity"]
+    else:
+        df["debt_equity"] = float("nan")
 
     if all(c in df.columns for c in ("current_assets", "current_liabilities", "inventory")):
         df["current_ratio"] = df["current_assets"] / df["current_liabilities"]
@@ -212,9 +227,7 @@ def calculate_fundamental_score(
 
 
 if __name__ == "__main__":
-    csv_path = os.path.join(os.path.dirname(__file__), "..", "data", "fintables_asels.csv")
-
-    df = load_fundamentals(csv_path)
+    df = load_fundamentals("ASELS")
     df = calculate_derived_ratios(df)
     df = calculate_market_multiples(df, current_price=372.50, shares_outstanding=4_560_000_000)
     df = calculate_yoy_growth(df)
@@ -250,21 +263,18 @@ if __name__ == "__main__":
     pd.set_option("display.float_format", "{:.4f}".format)
     print(df[score_cols].tail(5).to_string())
 
-    # Persist calculated ratios back to CSV (preserving comment header lines)
+    csv_out = os.path.join(_FUND_DIR, "ASELS_fundamentals.csv")
     comment_lines = []
-    with open(csv_path) as f:
+    with open(csv_out) as f:
         for line in f:
             if line.startswith("#"):
                 comment_lines.append(line.rstrip("\n"))
             else:
                 break
-
-    csv_out = csv_path
     with open(csv_out, "w") as f:
         for line in comment_lines:
             f.write(line + "\n")
         df.to_csv(f)
-
     print(f"\nCSV updated → {os.path.abspath(csv_out)}")
     print("\n=== Notes ===")
     print("  current_ratio : NaN — needs 'current_liabilities' column (add from Fintables balance sheet)")
