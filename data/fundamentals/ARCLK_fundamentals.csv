@@ -1,0 +1,12 @@
+# Monetary values (revenue, ebitda, net_profit, total_assets, shareholders_equity, net_debt): million TRY
+# Source: Fintables periodic view, inflation-adjusted (TL restated)
+# Fill values before running calculate_derived_ratios()
+period,revenue,ebitda,net_profit,total_assets,shareholders_equity,net_debt
+2024Q1,,,,,,
+2024Q2,,,,,,
+2024Q3,,,,,,
+2024Q4,,,,,,
+2025Q1,,,,,,
+2025Q2,,,,,,
+2025Q3,,,,,,
+2025Q4,,,,,,

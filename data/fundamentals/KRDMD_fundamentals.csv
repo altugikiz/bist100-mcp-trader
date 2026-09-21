@@ -1,0 +1,12 @@
+# Monetary values (revenue, ebitda, net_profit, total_assets, shareholders_equity, net_debt): million TRY
+# Source: Fintables periodic view, inflation-adjusted (TL restated)
+# Fill values before running calculate_derived_ratios()
+period,revenue,ebitda,net_profit,total_assets,shareholders_equity,net_debt
+2024Q1,23612.19,855.55,-1609.11,134184.32,81429.71,-6678.75
+2024Q2,43353.78,1328.84,-3263.42,128271.12,80476.03,-13.76
+2024Q3,67186.82,937.24,-4853.63,130109.44,79151.40,1636.20
+2024Q4,87088.25,1818.97,-4672.56,126345.82,79282.35,2875.45
+2025Q1,20184.05,251.87,-2074.63,123642.72,77120.10,7285.17
+2025Q2,39497.39,1351.99,-335.84,123645.88,78386.05,8897.17
+2025Q3,59231.52,2846.80,-1173.69,122324.73,78538.66,8960.74
+2025Q4,78568.20,5120.34,-1977.80,149605.90,99685.63,6762.53

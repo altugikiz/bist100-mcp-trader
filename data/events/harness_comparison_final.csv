@@ -1,0 +1,6 @@
+version,name,tool_enforcement,evidence_gate,memory_replay,invalid_tool_call_rate,evidence_completeness,reproducibility,decision_log_exists,action,gate_status,numerical_hallucination
+A,Baseline (no guardrails),False,False,False,N/A (no tools),N/A,not tested (single run),False,FUNDAMENTAL_IMPROVEMENT_CANDIDATE,N/A (no gate),"SEVERE — fabricated price (~396-450 TRY vs actual 231.70 TRY), fabricated Q2 2026 financials, fabricated backlog/capex figures not present in any tool output"
+B,Tool enforcement only,True,False,False,"N/A (only 2 permitted tools used, no violations attempted)",0% (no evidence bundle mechanism exists at this version),not tested (single run),False,WATCH,N/A (no gate),"NONE — all figures (close=231.7, RSI14=70.86, SMA20=210.57, SMA50=198.65) match tool output exactly"
+C,Automated pipeline + tool enforcement,True,False,False,0.9,,1.0,False,WATCH,PASS_WITH_WARNINGS,"NONE — deterministic Python pipeline, all values from tool outputs"
+D,C + evidence gate,True,True,False,0.9,0.3846,1.0,False,WATCH,PASS_WITH_WARNINGS,"NONE — deterministic Python pipeline, all values from tool outputs"
+E,D + memory replay,True,True,True,0.9,0.3846,1.0,True,WATCH,PASS_WITH_WARNINGS,"NONE — deterministic Python pipeline, all values from tool outputs"

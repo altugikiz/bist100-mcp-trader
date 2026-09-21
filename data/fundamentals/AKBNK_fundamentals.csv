@@ -1,0 +1,19 @@
+# Monetary values (revenue, ebitda, net_profit, total_assets, shareholders_equity, net_debt): million TRY
+# Source: Fintables periodic view, inflation-adjusted (TL restated)
+# Fill values before running calculate_derived_ratios()
+# Note: AKBNK is a bank. EBITDA and net_debt are not meaningful for financial institutions
+# (interest income/expense is core to the business model, and deposits are not comparable to
+# corporate debt) — these fields are intentionally left NaN. revenue is proxied by total
+# banking income, net_profit by net period profit.
+# Quarterly net_profit and revenue derived from YTD cumulative figures via Q_n - Q_(n-1).
+# Validated against real KAP disclosures: 2024Q3 9030.60 vs actual 9031, 2024Q4 9227.15 vs actual 9227.
+# Balance sheet items (total_assets, shareholders_equity) taken directly from Fintables period-end values.
+period,revenue,ebitda,net_profit,total_assets,shareholders_equity,net_debt
+2024Q1,99882.15,,13184.78,2072463.85,213124.65,
+2024Q2,119912.55,,10919.66,2291293.65,221112.80,
+2024Q3,131336.77,,9030.60,2404289.93,230964.76,
+2024Q4,147711.00,,9227.15,2653105.36,240383.65,
+2025Q1,146272.00,,13730.00,2851224.88,242956.10,
+2025Q2,163733.00,,11120.00,2984029.98,258936.65,
+2025Q3,170282.39,,14057.61,3231443.12,277396.46,
+2025Q4,174413.45,,18316.62,3558958.00,310170.00,

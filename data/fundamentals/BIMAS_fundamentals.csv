@@ -1,0 +1,12 @@
+# Monetary values (revenue, ebitda, net_profit, total_assets, shareholders_equity, net_debt): million TRY
+# Source: Fintables periodic view, inflation-adjusted (TL restated)
+# Quarterly values derived from YTD cumulative figures via Q_n - Q_(n-1).
+period,revenue,ebitda,net_profit,total_assets,shareholders_equity,net_debt
+2024Q1,200698,8654,7500,365619,161362,42885
+2024Q2,194922,6795,8067,357864,158138,46310
+2024Q3,206291,8164,7127,366829,165167,50883
+2024Q4,198943,11090,5955,363534,181329,52655
+2025Q1,206877,6839,3788,461537,184790,47806
+2025Q2,202426,12600,3558,396339,179134,57521
+2025Q3,220829,15827,6482,481510,186864,55552
+2025Q4,218990,14879,8113,398123,194985,58012

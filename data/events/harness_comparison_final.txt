@@ -1,0 +1,21 @@
+HARNESS VERSION COMPARISON — ASELS
+===========================================================================
+
+version                                  name  tool_enforcement  evidence_gate  memory_replay                                     invalid_tool_call_rate                                    evidence_completeness         reproducibility decision_log_exists                            action        gate_status                                                                                                                                       numerical_hallucination
+      A              Baseline (no guardrails)             False          False          False                                             N/A (no tools)                                                      N/A not tested (single run)               False FUNDAMENTAL_IMPROVEMENT_CANDIDATE      N/A (no gate) SEVERE — fabricated price (~396-450 TRY vs actual 231.70 TRY), fabricated Q2 2026 financials, fabricated backlog/capex figures not present in any tool output
+      B                 Tool enforcement only              True          False          False N/A (only 2 permitted tools used, no violations attempted) 0% (no evidence bundle mechanism exists at this version) not tested (single run)               False                             WATCH      N/A (no gate)                                                           NONE — all figures (close=231.7, RSI14=70.86, SMA20=210.57, SMA50=198.65) match tool output exactly
+      C Automated pipeline + tool enforcement              True          False          False                                                        90%                                                      nan                     1.0               False                             WATCH PASS_WITH_WARNINGS                                                                                            NONE — deterministic Python pipeline, all values from tool outputs
+      D                     C + evidence gate              True           True          False                                                        90%                                                    38.5%                     1.0               False                             WATCH PASS_WITH_WARNINGS                                                                                            NONE — deterministic Python pipeline, all values from tool outputs
+      E                     D + memory replay              True           True           True                                                        90%                                                    38.5%                     1.0                True                             WATCH PASS_WITH_WARNINGS                                                                                            NONE — deterministic Python pipeline, all values from tool outputs
+
+KEY FINDING
+===========================================================================
+The single most consequential harness design decision is not evidence
+gating or state enforcement — it's simply forcing tool use. Version A
+(no tools) hallucinated a completely different price level and
+fabricated 2026 financials never returned by any tool; Version B (tools
+only, no other safeguards) already eliminates numerical hallucination
+entirely. Evidence completeness, state enforcement, and decision logging
+(C→D→E) then add auditability and reproducibility on top of that
+already-accurate foundation, rather than fixing accuracy problems
+themselves.
