@@ -14,10 +14,10 @@ from typing import Dict, List, Optional, Tuple
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 
-_SRC = os.path.dirname(__file__)
+_SRC = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, _SRC)
 
-from universe import UNIVERSE, get_relative_benchmark
+from data.universe import UNIVERSE, get_relative_benchmark
 
 _CACHE_DIR = os.path.join(_SRC, "..", "data", "universe_cache")
 

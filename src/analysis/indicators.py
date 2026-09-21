@@ -389,7 +389,7 @@ if __name__ == "__main__":
 
     # --- Technical score ---
     import sys, os
-    sys.path.insert(0, os.path.dirname(__file__))
+    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
     from support_resistance import find_support_resistance
 
     _, pivot_lows = find_support_resistance(df, order=5)

@@ -379,7 +379,7 @@ def classify_market_regime(xu100_df: pd.DataFrame) -> pd.DataFrame:
 def _enrich(df: pd.DataFrame) -> pd.DataFrame:
     """Apply all required indicators to a raw OHLCV DataFrame."""
     import sys
-    sys.path.insert(0, os.path.dirname(__file__))
+    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
     from indicators import (
         calculate_bollinger_bands, calculate_rsi, calculate_supertrend,
         calculate_kama, calculate_ichimoku,
@@ -408,10 +408,10 @@ def build_universe_event_log() -> pd.DataFrame:
     redundant downloads.
     """
     import sys
-    sys.path.insert(0, os.path.dirname(__file__))
+    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
     from universe import UNIVERSE
 
-    cache_dir = os.path.join(os.path.dirname(__file__), "..", "data", "universe_cache")
+    cache_dir = os.path.join(os.path.dirname(__file__), "..", "..", "data", "universe_cache")
     xu100_path = os.path.join(cache_dir, "XU100.csv")
 
     # ── Load or fetch XU100 ────────────────────────────────────────────
@@ -520,7 +520,7 @@ def summarize_event_statistics(event_log_df: pd.DataFrame) -> dict:
 
 if __name__ == "__main__":
     import sys
-    sys.path.insert(0, os.path.dirname(__file__))
+    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
     pd.set_option("display.float_format", "{:.4f}".format)
     pd.set_option("display.width", 160)
@@ -530,7 +530,7 @@ if __name__ == "__main__":
     print("Building universe event log for all 30 tickers …")
     universe_log = build_universe_event_log()
 
-    out_dir = os.path.join(os.path.dirname(__file__), "..", "data", "events")
+    out_dir = os.path.join(os.path.dirname(__file__), "..", "..", "data", "events")
     os.makedirs(out_dir, exist_ok=True)
     out_path = os.path.join(out_dir, "universe_events.csv")
     universe_log.to_csv(out_path, index=False)

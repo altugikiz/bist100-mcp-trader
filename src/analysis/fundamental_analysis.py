@@ -7,7 +7,7 @@ import os
 import pandas as pd
 
 
-_FUND_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "fundamentals")
+_FUND_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "data", "fundamentals")
 
 
 def load_fundamentals(ticker: str) -> pd.DataFrame:

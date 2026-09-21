@@ -20,7 +20,7 @@ _CACHE_DIR = os.path.join(_SRC, "..", "data", "universe_cache")
 _DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
 
 sys.path.insert(0, _SRC)
-from universe import UNIVERSE
+from data.universe import UNIVERSE
 
 
 # ---------------------------------------------------------------------------

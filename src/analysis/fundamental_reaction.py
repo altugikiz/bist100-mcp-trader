@@ -22,9 +22,9 @@ _FUND_DIR  = os.path.join(_SRC, "..", "data", "fundamentals")
 
 sys.path.insert(0, _SRC)
 
-from universe import UNIVERSE, get_relative_benchmark
-from point_in_time import build_point_in_time_fundamentals
-from fundamental_analysis import load_fundamentals, calculate_derived_ratios
+from data.universe import UNIVERSE, get_relative_benchmark
+from analysis.point_in_time import build_point_in_time_fundamentals
+from analysis.fundamental_analysis import load_fundamentals, calculate_derived_ratios
 
 # Tickers with populated fundamentals files (ARCLK and TUPRS are template-only)
 COVERED_TICKERS = ["AKBNK", "ASELS", "BIMAS", "ENJSA", "KCHOL", "KRDMD", "PGSUS", "TOASO"]

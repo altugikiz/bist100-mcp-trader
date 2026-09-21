@@ -98,7 +98,7 @@ def plot_support_resistance(
 
 if __name__ == "__main__":
     import sys
-    sys.path.insert(0, os.path.dirname(__file__))
+    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
     from data_collection import fetch_ohlcv
 
     df = fetch_ohlcv("ASELS.IS", "2023-01-01", "2026-01-01")
@@ -111,5 +111,5 @@ if __name__ == "__main__":
     print(f"\nPivot lows (support): {len(pivot_lows)}")
     print(pivot_lows[["Close"]].round(2).to_string())
 
-    output = os.path.join(os.path.dirname(__file__), "..", "results", "support_resistance.png")
+    output = os.path.join(os.path.dirname(__file__), "..", "..", "results", "support_resistance.png")
     plot_support_resistance(df, pivot_highs, pivot_lows, output_path=output)

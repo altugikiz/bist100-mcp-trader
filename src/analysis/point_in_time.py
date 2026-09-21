@@ -20,10 +20,10 @@ import pandas as pd
 from pandas.tseries.offsets import BDay
 from typing import Dict, Optional
 
-_SRC = os.path.dirname(__file__)
+_SRC = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, _SRC)
 
-from universe import UNIVERSE
+from data.universe import UNIVERSE
 
 # Reporting-lag constants (calendar days after quarter-end)
 _LAG_FINANCIALS = 30   # BDDK/SPK requirement for banks, insurers, brokers
