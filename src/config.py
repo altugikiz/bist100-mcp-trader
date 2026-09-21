@@ -5,13 +5,16 @@ of hardcoding values in individual analysis scripts.
 """
 
 import os
+import sys
+
+sys.path.insert(0, os.path.dirname(__file__))
 
 # ---------------------------------------------------------------------------
 # Ticker universe
 # ---------------------------------------------------------------------------
 
 # Import the full 30-stock universe; use UNIVERSE instead of a single SYMBOL.
-from universe import UNIVERSE  # noqa: E402  (circular-safe: universe has no config import)
+from data.universe import UNIVERSE  # noqa: E402  (circular-safe: universe has no config import)
 
 BENCHMARK_SYMBOL = "XU100.IS"       # BIST 100 index benchmark
 
