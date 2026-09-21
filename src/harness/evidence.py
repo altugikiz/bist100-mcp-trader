@@ -15,10 +15,10 @@ from typing import Any, Dict, List, Optional
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 
-_SRC = os.path.dirname(__file__)
+_SRC = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, _SRC)
 
-from universe import UNIVERSE, has_sector_peers
+from data.universe import UNIVERSE, has_sector_peers
 
 
 # ---------------------------------------------------------------------------

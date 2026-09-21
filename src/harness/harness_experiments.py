@@ -43,17 +43,17 @@ from typing import Any
 
 warnings.filterwarnings("ignore")
 
-_SRC = os.path.dirname(__file__)
+_SRC = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, _SRC)
 
 import numpy as np
 import pandas as pd
 
-from harness import (
+from harness.harness import (
     AnalysisSession, HARNESS_STATES, STATE_TOOL_PERMISSIONS,
     advance_state, is_tool_allowed, record_tool_call,
 )
-from mcp_server import (
+from mcptools.mcp_server import (
     start_analysis_session, run_full_analysis,
     get_recommended_action, submit_human_review, get_session_replay,
     _SESSIONS,

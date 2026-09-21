@@ -12,7 +12,7 @@ import sys
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-_SRC     = os.path.dirname(__file__)
+_SRC     = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 _LOG_DIR = os.path.join(_SRC, "..", "data", "decision_log")
 
 sys.path.insert(0, _SRC)
