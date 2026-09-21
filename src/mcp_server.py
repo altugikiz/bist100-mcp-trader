@@ -14,10 +14,12 @@ No network port is opened; Claude Desktop or another MCP host manages the
 process lifecycle.
 """
 
+import io
 import os
 import sys
 import json
 import math
+import contextlib
 
 # Ensure sibling modules are importable when launched from any working directory
 sys.path.insert(0, os.path.dirname(__file__))
@@ -29,6 +31,7 @@ from mcp.server.fastmcp import FastMCP
 from data_collection import fetch_ohlcv
 from indicators import (
     calculate_sma, calculate_rsi, calculate_macd, calculate_technical_score,
+    calculate_bollinger_bands, calculate_kama, calculate_supertrend, calculate_ichimoku,
 )
 from support_resistance import find_support_resistance
 from fundamental_analysis import (
@@ -47,6 +50,21 @@ from config import (
     BUY_THRESHOLD, SELL_THRESHOLD, TECH_WEIGHT, FUND_WEIGHT,
     FUNDAMENTAL_CSV_PATH as _CSV_PATH,
 )
+from universe import UNIVERSE
+from sector_analysis import rank_universe_by_sector
+from reversal_events import build_event_log
+from fundamental_reaction import calculate_quarterly_changes
+from point_in_time import build_point_in_time_fundamentals
+from evidence import build_evidence_bundle, RiskGate
+from action_space import determine_action
+from decision_log import log_decision, add_human_review, load_decision_log, replay_analysis
+from harness import AnalysisSession, advance_state, record_tool_call
+
+_CACHE_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "universe_cache")
+_LOG_DIR   = os.path.join(os.path.dirname(__file__), "..", "data", "decision_log")
+
+# In-memory session store: session_id -> {"session": AnalysisSession, ...}
+_SESSIONS: dict = {}
 
 
 # ---------------------------------------------------------------------------
@@ -388,8 +406,628 @@ def run_backtest_summary(
 
 
 # ---------------------------------------------------------------------------
+# Private helpers for the harness tools
+# ---------------------------------------------------------------------------
+
+def _load_price_df(ticker: str) -> pd.DataFrame:
+    """Read cached OHLCV CSV for ticker; fall back to live fetch on miss."""
+    path = os.path.join(_CACHE_DIR, f"{ticker}.csv")
+    if os.path.isfile(path):
+        return pd.read_csv(path, index_col="Date", parse_dates=True)
+    return fetch_ohlcv(f"{ticker}.IS", "2023-01-02", "2026-01-01")
+
+
+def _build_price_with_indicators(df: pd.DataFrame) -> pd.DataFrame:
+    """Add all technical indicator columns to a price DataFrame in place."""
+    df["SMA20"] = calculate_sma(df, 20)
+    df["SMA50"] = calculate_sma(df, 50)
+    df["RSI14"] = calculate_rsi(df, 14)
+    df[["MACD", "MACD_Signal", "MACD_Hist"]] = calculate_macd(df)
+    df = calculate_bollinger_bands(df)
+    df = calculate_kama(df)
+    df = calculate_supertrend(df)
+    df = calculate_ichimoku(df)
+    _, pivot_lows = find_support_resistance(df, order=5)
+    df = calculate_technical_score(df, pivot_lows)
+    return df, pivot_lows
+
+
+def _find_safe_quarter(ticker: str, price_end: pd.Timestamp) -> str | None:
+    """
+    Return the most recent disclosed quarter whose KAP disclosure_date
+    is on or before price_end.  Returns None when no safe quarter exists.
+    """
+    try:
+        raw  = load_fundamentals(ticker).reset_index()
+        pit  = build_point_in_time_fundamentals(ticker, raw)
+        safe = pit[pd.to_datetime(pit["disclosure_date"]) <= price_end]
+        return str(safe["period"].iloc[-1]) if not safe.empty else None
+    except Exception:
+        return None
+
+
+def _build_fundamental_result(ticker: str, safe_quarter: str) -> dict:
+    """Compute fundamental score and QoQ changes for safe_quarter."""
+    raw       = load_fundamentals(ticker)
+    fund_full = (
+        raw
+        .pipe(lambda d: calculate_derived_ratios(d.copy()))
+        .pipe(calculate_yoy_growth)
+        .pipe(_calc_fund_score, sector_avg_pe=SECTOR_AVG_PE)
+    )
+    chg_df   = calculate_quarterly_changes(ticker).set_index("period")
+    q_row    = fund_full.loc[safe_quarter]
+
+    # Previous quarter for _turned_positive logic in action_space
+    periods = list(fund_full.index)
+    idx     = periods.index(safe_quarter)
+    prev_q  = periods[idx - 1] if idx > 0 else None
+
+    prev_np  = float(chg_df.loc[prev_q, "net_profit_growth_qoq"]) if prev_q and prev_q in chg_df.index else None
+    prev_rev = float(chg_df.loc[prev_q, "revenue_growth_qoq"])    if prev_q and prev_q in chg_df.index else None
+
+    return {
+        "net_profit_growth_qoq":      float(chg_df.loc[safe_quarter, "net_profit_growth_qoq"]) if safe_quarter in chg_df.index else None,
+        "revenue_growth_qoq":         float(chg_df.loc[safe_quarter, "revenue_growth_qoq"])    if safe_quarter in chg_df.index else None,
+        "prev_net_profit_growth_qoq": prev_np,
+        "prev_revenue_growth_qoq":    prev_rev,
+        "roe":                        float(q_row["roe"])            if not pd.isna(q_row["roe"])            else None,
+        "net_debt_ebitda":            float(q_row["net_debt_ebitda"]) if not pd.isna(q_row["net_debt_ebitda"]) else None,
+        "fundamental_score":          int(q_row["fundamental_score"]),
+    }
+
+
+def _build_macro_snapshot(snap_date: pd.Timestamp) -> dict:
+    """Read daily macro CSV and return a snapshot dict for snap_date."""
+    macro_path = os.path.join(os.path.dirname(__file__), "..", "data", "macro", "macro_daily.csv")
+    macro  = pd.read_csv(macro_path, index_col="Date", parse_dates=True)
+    snap   = macro.loc[snap_date]
+    snap30 = macro.loc[snap_date - pd.Timedelta(days=30)]
+    return {
+        "usdtry":         float(snap["usdtry"]),
+        "eurtry":         float(snap["eurtry"]),
+        "tcmb_rate":      float(snap["tcmb_rate"]),
+        "tufe_yoy":       float(snap["tufe_yoy"]),
+        "fed_rate":       float(snap["fed_rate"]),
+        "usdtry_30d_ago": float(snap30["usdtry"]),
+        "as_of":          str(snap_date.date()),
+    }
+
+
+def _observed_context_summary(bundle) -> dict:
+    """Return a compact, token-friendly summary of observed_context."""
+    tech  = bundle.observed_context.get("technical", {})
+    sect  = bundle.observed_context.get("sector", {})
+    macro = bundle.observed_context.get("macro", {})
+    fund  = bundle.observed_context.get("fundamental", {})
+    evts  = bundle.observed_context.get("events", {})
+    top_events = {
+        k: {"bounce_rate_5d": round(v.get("bounce_rate_5d", 0) * 100, 1), "n": v.get("n")}
+        for k, v in evts.items()
+        if isinstance(v, dict) and v.get("n", 0) >= 5
+    }
+    return _sanitise({
+        "technical_score":      tech.get("technical_score"),
+        "KAMA_Slope":           tech.get("KAMA_Slope"),
+        "Supertrend_Direction": tech.get("Supertrend_Direction"),
+        "RSI14":                round(tech.get("RSI14", 0), 1),
+        "sector_group":         sect.get("sector_group"),
+        "benchmark_type":       sect.get("benchmark_type"),
+        "lag_score_20d_pct":    round(float(sect.get("lag_score_20d", 0)) * 100, 1) if sect.get("lag_score_20d") is not None else None,
+        "fundamental_score":    fund.get("fundamental_score"),
+        "tcmb_rate":            macro.get("tcmb_rate"),
+        "usdtry":               macro.get("usdtry"),
+        "top_reversal_events":  top_events,
+    })
+
+
+# ---------------------------------------------------------------------------
+# Tool 7 — Start analysis session
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+def start_analysis_session(ticker: str) -> dict:
+    """
+    Create a new analysis session for the given ticker and advance the harness
+    through its initial states: START → SELECT_UNIVERSE → LOAD_MARKET_DATA →
+    CHECK_DATA_QUALITY.
+
+    CALL THIS TOOL FIRST before any other analysis tool in the harness sequence.
+    Do NOT skip this step — subsequent tools (run_full_analysis, get_recommended_action,
+    submit_human_review, get_session_replay) all require the session_id returned here.
+
+    The harness enforces a strict ordering: tools called in the wrong state will
+    be rejected.  Always call tools in this sequence:
+        1. start_analysis_session
+        2. run_full_analysis
+        3. get_recommended_action
+        4. submit_human_review
+        5. get_session_replay
+
+    Args:
+        ticker: Short BIST ticker code, e.g. 'ASELS', 'TOASO', 'AKBNK'.
+
+    Returns:
+        {"session_id": str, "current_state": str, "ticker": str,
+         "price_rows": int, "price_nan_pct": float}
+    """
+    ticker = ticker.upper()
+
+    session = AnalysisSession(ticker)
+
+    # SELECT_UNIVERSE
+    advance_state(session, "SELECT_UNIVERSE")
+    in_universe = (UNIVERSE["ticker"] == ticker).any()
+    record_tool_call(session, "has_sector_peers",
+                     f"ticker={ticker}",
+                     f"in_universe={in_universe}")
+
+    # LOAD_MARKET_DATA
+    advance_state(session, "LOAD_MARKET_DATA")
+    df = _load_price_df(ticker)
+    record_tool_call(session, "get_stock_history",
+                     f"ticker={ticker}.IS  rows={len(df)}",
+                     f"start={df.index[0].date()}  end={df.index[-1].date()}")
+
+    # CHECK_DATA_QUALITY
+    advance_state(session, "CHECK_DATA_QUALITY")
+    nan_pct = float(df["Close"].isna().mean() * 100)
+    record_tool_call(session, "check_data_quality",
+                     f"ticker={ticker}",
+                     f"Close_NaN={nan_pct:.1f}%  rows={len(df)}")
+
+    _SESSIONS[session.session_id] = {
+        "session":   session,
+        "price_df":  df,
+        "ticker":    ticker,
+    }
+
+    return _sanitise({
+        "session_id":    session.session_id,
+        "current_state": session.current_state,
+        "ticker":        ticker,
+        "price_rows":    len(df),
+        "price_nan_pct": round(nan_pct, 2),
+    })
+
+
+# ---------------------------------------------------------------------------
+# Tool 8 — Run full analysis
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+def run_full_analysis(session_id: str) -> dict:
+    """
+    Advance the session from CHECK_DATA_QUALITY to BUILD_EVIDENCE, running
+    every analysis phase in the correct order:
+
+        CALCULATE_TECHNICALS → RUN_SECTOR_RELATIVE_ANALYSIS →
+        RUN_PATTERN_AND_REVERSAL_ANALYSIS → LOAD_FUNDAMENTALS →
+        LOAD_MACRO_CONTEXT → LOAD_NEWS_AND_SPEECH_CONTEXT → BUILD_EVIDENCE
+
+    CALL THIS TOOL SECOND — only after start_analysis_session has returned a
+    session_id.  Do not call get_recommended_action before this tool completes.
+
+    The safe fundamental quarter is chosen automatically: the most recent
+    quarter whose KAP disclosure date falls on or before the price data end
+    date, preventing look-ahead bias.
+
+    Args:
+        session_id: The session_id returned by start_analysis_session.
+
+    Returns:
+        {"committed_evidence": [...], "gate_result": {...},
+         "observed_context_summary": {...}, "safe_quarter": str}
+    """
+    if session_id not in _SESSIONS:
+        return {"error": f"session_id '{session_id}' not found. Call start_analysis_session first."}
+
+    store   = _SESSIONS[session_id]
+    session = store["session"]
+    df_raw  = store["price_df"]
+    ticker  = store["ticker"]
+    snap    = df_raw.index[-1]   # most recent trading day in cache
+
+    # ── CALCULATE_TECHNICALS ───────────────────────────────────────────
+    advance_state(session, "CALCULATE_TECHNICALS")
+    df, _ = _build_price_with_indicators(df_raw.copy())
+    last = df.iloc[-1]
+    technical_result = {
+        "technical_score":      int(last["technical_score"]),
+        "KAMA_Slope":           str(last["KAMA_Slope"]),
+        "Supertrend_Direction": str(last["Supertrend_Direction"]),
+        "Ichimoku_State":       None if (isinstance(last["Ichimoku_State"], float) and math.isnan(last["Ichimoku_State"])) else str(last["Ichimoku_State"]),
+        "RSI14":                float(last["RSI14"]),
+    }
+    record_tool_call(session, "calculate_technical_score",
+                     f"ticker={ticker} as_of={snap.date()}",
+                     f"score={technical_result['technical_score']}/5  KAMA={technical_result['KAMA_Slope']}")
+
+    # ── RUN_SECTOR_RELATIVE_ANALYSIS ──────────────────────────────────
+    advance_state(session, "RUN_SECTOR_RELATIVE_ANALYSIS")
+    rank_df = rank_universe_by_sector(snap, windows=[5, 10, 20])
+    s_row   = rank_df[rank_df["ticker"] == ticker]
+    if s_row.empty:
+        sector_result = {"sector_group": "unknown", "benchmark_type": "xu100_fallback",
+                         "lag_score_5d": None, "lag_score_10d": None, "lag_score_20d": None,
+                         "intra_group_rank": None, "potential_catchup_flag": False}
+    else:
+        s_row = s_row.iloc[0]
+        sector_result = {k: s_row[k] for k in ["sector_group", "benchmark_type",
+                                                 "lag_score_5d", "lag_score_10d",
+                                                 "lag_score_20d", "intra_group_rank"]}
+        lag20 = float(s_row["lag_score_20d"]) if s_row["lag_score_20d"] is not None else 0
+        sector_result["potential_catchup_flag"] = bool(lag20 < -0.05)
+    record_tool_call(session, "rank_universe_by_sector",
+                     f"date={snap.date()}",
+                     f"lag_20d={sector_result.get('lag_score_20d', 0) or 0:.3f}  catchup={sector_result['potential_catchup_flag']}")
+
+    # ── RUN_PATTERN_AND_REVERSAL_ANALYSIS ─────────────────────────────
+    advance_state(session, "RUN_PATTERN_AND_REVERSAL_ANALYSIS")
+    log_ev = build_event_log(df, ticker)
+    event_result = {}
+    for etype, grp in log_ev.groupby("event_type"):
+        fwd5       = grp["forward_return_5d"].dropna()
+        dates      = pd.to_datetime(grp["event_date"])
+        days_since = int((snap - dates.max()).days) if len(dates) else None
+        event_result[etype] = {
+            "n":               len(grp),
+            "bounce_rate_5d":  float((fwd5 > 0).mean()) if len(fwd5) else None,
+            "avg_fwd_5d":      float(fwd5.mean())        if len(fwd5) else None,
+            "days_since_last": days_since,
+        }
+    record_tool_call(session, "build_event_log",
+                     f"ticker={ticker}",
+                     f"event_types={len(event_result)}")
+
+    # ── LOAD_FUNDAMENTALS ─────────────────────────────────────────────
+    advance_state(session, "LOAD_FUNDAMENTALS")
+    safe_q = _find_safe_quarter(ticker, snap)
+    if safe_q:
+        fundamental_result = _build_fundamental_result(ticker, safe_q)
+    else:
+        fundamental_result = {"fundamental_score": 0, "net_profit_growth_qoq": None,
+                              "revenue_growth_qoq": None, "prev_net_profit_growth_qoq": None,
+                              "prev_revenue_growth_qoq": None, "roe": None, "net_debt_ebitda": None}
+    record_tool_call(session, "calculate_fundamental_score",
+                     f"ticker={ticker} safe_quarter={safe_q}",
+                     f"score={fundamental_result.get('fundamental_score', 0)}/5")
+
+    # ── LOAD_MACRO_CONTEXT ────────────────────────────────────────────
+    advance_state(session, "LOAD_MACRO_CONTEXT")
+    macro_snapshot = _build_macro_snapshot(snap)
+    record_tool_call(session, "build_daily_macro_series",
+                     f"end={snap.date()}",
+                     f"tcmb={macro_snapshot['tcmb_rate']}%  usdtry={macro_snapshot['usdtry']:.2f}")
+
+    # ── LOAD_NEWS_AND_SPEECH_CONTEXT (no-op Phase 6) ──────────────────
+    advance_state(session, "LOAD_NEWS_AND_SPEECH_CONTEXT")
+
+    # ── BUILD_EVIDENCE ────────────────────────────────────────────────
+    advance_state(session, "BUILD_EVIDENCE")
+    bundle     = build_evidence_bundle(ticker, technical_result, fundamental_result,
+                                       sector_result, event_result, macro_snapshot)
+    raw_fund   = load_fundamentals(ticker).reset_index()
+    pit        = build_point_in_time_fundamentals(ticker, raw_fund)
+    gate_result = RiskGate.check_data_quality(bundle, df, pit,
+                                               evaluated_quarter=safe_q)
+    record_tool_call(session, "build_evidence_bundle",
+                     f"ticker={ticker}",
+                     f"committed={len(bundle.committed_evidence)}  gate={gate_result['status']}")
+
+    # Persist analysis artifacts in session store for downstream tools
+    store.update({
+        "price_df_indicators": df,
+        "technical_result":    technical_result,
+        "sector_result":       sector_result,
+        "event_result":        event_result,
+        "fundamental_result":  fundamental_result,
+        "macro_snapshot":      macro_snapshot,
+        "bundle":              bundle,
+        "gate_result":         gate_result,
+        "safe_quarter":        safe_q,
+        "snap_date":           snap,
+    })
+
+    return _sanitise({
+        "committed_evidence":      bundle.committed_evidence,
+        "gate_result":             gate_result,
+        "observed_context_summary": _observed_context_summary(bundle),
+        "safe_quarter":            safe_q,
+    })
+
+
+# ---------------------------------------------------------------------------
+# Tool 9 — Get recommended action
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+def get_recommended_action(session_id: str) -> dict:
+    """
+    Determine the analytical action for this session by running the decision
+    tree from action_space.py.  Advances the harness through PREVIEW_STRATEGIES,
+    RUN_BACKTEST, RISK_GATE, and GENERATE_EXPLANATION states.
+
+    CALL THIS TOOL THIRD — only after run_full_analysis has completed for this
+    session_id.  Do not call submit_human_review before this tool completes.
+
+    If the real RiskGate returned HARD_BLOCK the gate is still honoured and
+    action will be ANALYSIS_UNSAFE.  To test downstream flow with pinned-safe
+    fundamentals the gate is passed through unchanged.
+
+    Args:
+        session_id: The session_id returned by start_analysis_session.
+
+    Returns:
+        {"action": str, "reasoning": [str, ...], "gate_status": str,
+         "allowed_actions_note": str}
+    """
+    if session_id not in _SESSIONS:
+        return {"error": f"session_id '{session_id}' not found."}
+
+    store   = _SESSIONS[session_id]
+    session = store["session"]
+
+    advance_state(session, "PREVIEW_STRATEGIES")
+    advance_state(session, "RUN_BACKTEST")
+    advance_state(session, "RISK_GATE")
+    advance_state(session, "GENERATE_EXPLANATION")
+
+    action_result = determine_action(
+        store["bundle"],
+        store["gate_result"],
+        store["sector_result"],
+        store["event_result"],
+        store["fundamental_result"],
+    )
+    record_tool_call(session, "generate_explanation",
+                     f"ticker={store['ticker']}",
+                     f"action={action_result['action']}")
+
+    store["action_result"] = action_result
+
+    return _sanitise({
+        "action":      action_result["action"],
+        "reasoning":   action_result["reasoning"],
+        "gate_status": store["gate_result"]["status"],
+        "allowed_actions_note": (
+            "This is an educational analytical label, not investment advice. "
+            "Allowed actions: HOLD, WATCH, INVESTIGATE, POTENTIAL_CATCH_UP_CANDIDATE, "
+            "TECHNICAL_REVERSAL_CANDIDATE, FUNDAMENTAL_IMPROVEMENT_CANDIDATE, "
+            "REJECT_SIGNAL, ANALYSIS_UNSAFE."
+        ),
+    })
+
+
+# ---------------------------------------------------------------------------
+# Tool 10 — Submit human review
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+def submit_human_review(
+    session_id: str,
+    result:     str,
+    reason:     str,
+) -> dict:
+    """
+    Record the human analyst's verdict on the agent's recommended action,
+    persist the full decision log to disk, and close the session.
+
+    CALL THIS TOOL FOURTH — only after get_recommended_action has returned an
+    action for this session_id.  Always provide a reason even for ACCEPT.
+
+    The session is advanced to HUMAN_REVIEW, the log is written to
+    data/decision_log/<TICKER>_<session_id>.json, then advanced to LOG_AND_CLOSE.
+
+    Args:
+        session_id: The session_id returned by start_analysis_session.
+        result:     One of "ACCEPT", "MODIFY", "REJECT".
+        reason:     Free-text justification for the review decision.
+
+    Returns:
+        {"logged": True, "log_path": str, "result": str, "action": str}
+    """
+    allowed = {"ACCEPT", "MODIFY", "REJECT"}
+    if result not in allowed:
+        return {"error": f"result must be one of {sorted(allowed)}, got {result!r}"}
+
+    if session_id not in _SESSIONS:
+        return {"error": f"session_id '{session_id}' not found."}
+
+    store   = _SESSIONS[session_id]
+    session = store["session"]
+    ticker  = store["ticker"]
+
+    advance_state(session, "HUMAN_REVIEW")
+
+    entry = log_decision(
+        session,
+        store["bundle"],
+        store["gate_result"],
+        store["action_result"],
+    )
+
+    log_path = os.path.join(_LOG_DIR, f"{ticker}_{session_id}.json")
+    add_human_review(log_path, result=result, reason=reason)
+    store["log_path"] = log_path
+
+    advance_state(session, "LOG_AND_CLOSE")
+    record_tool_call(session, "log_decision",
+                     f"result={result}",
+                     f"path={log_path}")
+
+    return _sanitise({
+        "logged":   True,
+        "log_path": log_path,
+        "result":   result,
+        "action":   store["action_result"]["action"],
+    })
+
+
+# ---------------------------------------------------------------------------
+# Tool 11 — Get session replay
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+def get_session_replay(session_id: str) -> dict:
+    """
+    Return a human-readable replay of the completed decision log for this
+    session.  Includes state history, tool call trace, committed evidence,
+    gate result, agent conclusion, and human review verdict.
+
+    CALL THIS TOOL FIFTH — only after submit_human_review has completed and
+    the log has been written to disk.
+
+    The replay text mirrors the Section 27 format from the project brief:
+        Agent conclusion: <action>
+        Human review:     <ACCEPT|MODIFY|REJECT>
+        Reason:           <reason>
+
+    Args:
+        session_id: The session_id returned by start_analysis_session.
+
+    Returns:
+        {"replay_text": str, "log_path": str}
+    """
+    if session_id not in _SESSIONS:
+        return {"error": f"session_id '{session_id}' not found."}
+
+    store    = _SESSIONS[session_id]
+    log_path = store.get("log_path")
+
+    if not log_path or not os.path.isfile(log_path):
+        return {"error": "Log file not found. Call submit_human_review first."}
+
+    log_entry = load_decision_log(log_path)
+
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        replay_analysis(log_entry)
+
+    return {"replay_text": buf.getvalue(), "log_path": log_path}
+
+
+# ---------------------------------------------------------------------------
 # Entry point — stdio transport (MCP standard)
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
-    mcp.run(transport="stdio")
+    import warnings
+    warnings.filterwarnings("ignore")
+
+    # ── Mode switch ────────────────────────────────────────────────────
+    # python src/mcp_server.py          → stdio MCP server (production)
+    # python src/mcp_server.py --test   → direct Python function test
+    # ──────────────────────────────────────────────────────────────────
+    if "--test" not in sys.argv:
+        mcp.run(transport="stdio")
+        sys.exit(0)
+
+    # ── Direct Python function call test (no MCP protocol) ────────────
+    # Tests tools 7-11 for ASELS in the required order:
+    #   start_analysis_session → run_full_analysis → get_recommended_action
+    #   → submit_human_review → get_session_replay
+    # ──────────────────────────────────────────────────────────────────
+
+    SEP  = "=" * 65
+    SEP2 = "-" * 65
+    TICKER = "ASELS"
+
+    print(SEP)
+    print("STEP 1 — start_analysis_session")
+    print(SEP)
+    r1 = start_analysis_session(TICKER)
+    sid = r1["session_id"]
+    for k, v in r1.items():
+        print(f"  {k:<20} {v}")
+
+    print()
+    print(SEP)
+    print("STEP 2 — run_full_analysis")
+    print(SEP)
+    r2 = run_full_analysis(sid)
+    print(f"  safe_quarter         : {r2.get('safe_quarter')}")
+    print(f"  gate_result.status   : {r2['gate_result']['status']}")
+    print(f"  gate_result.blocks   : {r2['gate_result']['blocks'] or 'none'}")
+    print(f"  gate_result.warnings : {r2['gate_result']['warnings']}")
+    print(f"\n  observed_context_summary:")
+    for k, v in (r2.get("observed_context_summary") or {}).items():
+        print(f"    {k:<30} {v}")
+    print(f"\n  committed_evidence ({len(r2['committed_evidence'])} items):")
+    for item in r2["committed_evidence"]:
+        print(f"    [{item['id']}] {item['statement']}")
+
+    print()
+    print(SEP)
+    print("STEP 3 — get_recommended_action")
+    print(SEP)
+    r3 = get_recommended_action(sid)
+    print(f"  action      : {r3['action']}")
+    print(f"  gate_status : {r3['gate_status']}")
+    print(f"  reasoning   :")
+    for r in r3["reasoning"]:
+        print(f"    • {r}")
+    print(f"\n  note: {r3['allowed_actions_note']}")
+
+    print()
+    print(SEP)
+    print("STEP 4 — submit_human_review")
+    print(SEP)
+    r4 = submit_human_review(
+        sid,
+        result = "ACCEPT",
+        reason = (
+            "Evidence is well-supported. WATCH is an appropriate conservative "
+            "label given mixed signals: strong sector leadership and robust "
+            "fundamentals (4/5) are offset by borderline technical score (3/5) "
+            "and no sign-flip in QoQ growth metrics."
+        ),
+    )
+    for k, v in r4.items():
+        print(f"  {k:<15} {v}")
+
+    print()
+    print(SEP)
+    print("STEP 5 — get_session_replay")
+    print(SEP)
+    r5 = get_session_replay(sid)
+    print(r5["replay_text"])
+
+    # ── Bonus: demonstrate evaluated_quarter scoping ──────────────────
+    print()
+    print(SEP)
+    print("BONUS — check_data_quality: scoped vs. full-scan comparison")
+    print(SEP)
+
+    from evidence import RiskGate, build_evidence_bundle
+    from point_in_time import build_point_in_time_fundamentals
+    from fundamental_analysis import load_fundamentals
+
+    store2  = _SESSIONS[sid]
+    bundle2 = store2["bundle"]
+    df2     = store2["price_df_indicators"]
+    safe_q2 = store2["safe_quarter"]
+    raw2    = load_fundamentals(TICKER).reset_index()
+    pit2    = build_point_in_time_fundamentals(TICKER, raw2)
+
+    gate_scoped = RiskGate.check_data_quality(bundle2, df2, pit2,
+                                               evaluated_quarter=safe_q2)
+    gate_full   = RiskGate.check_data_quality(bundle2, df2, pit2,
+                                               evaluated_quarter=None)
+
+    print(f"  Scoped (evaluated_quarter={safe_q2!r}):")
+    print(f"    status   : {gate_scoped['status']}")
+    print(f"    blocks   : {gate_scoped['blocks'] or 'none'}")
+    print(f"    warnings : {gate_scoped['warnings']}")
+    print()
+    print(f"  Full-scan (evaluated_quarter=None — legacy mode):")
+    print(f"    status   : {gate_full['status']}")
+    print(f"    blocks   : {gate_full['blocks']}")
+    print(f"    warnings : {gate_full['warnings']}")
+
+    assert gate_scoped["status"] != "HARD_BLOCK", "Scoped mode should not HARD_BLOCK on Q3"
+    assert gate_full["status"] == "HARD_BLOCK",   "Full-scan should still catch Q4 future disclosure"
+    print()
+    print("  ✓ scoped gate: no HARD_BLOCK for safe quarter")
+    print("  ✓ full-scan gate: HARD_BLOCK still raised for future Q4 disclosure")
+
