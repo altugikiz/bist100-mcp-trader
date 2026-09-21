@@ -7,11 +7,16 @@ of hardcoding values in individual analysis scripts.
 import os
 
 # ---------------------------------------------------------------------------
-# Ticker symbols
+# Ticker universe
 # ---------------------------------------------------------------------------
 
-SYMBOL           = "ASELS.IS"       # primary stock under analysis
+# Import the full 30-stock universe; use UNIVERSE instead of a single SYMBOL.
+from universe import UNIVERSE  # noqa: E402  (circular-safe: universe has no config import)
+
 BENCHMARK_SYMBOL = "XU100.IS"       # BIST 100 index benchmark
+
+# Legacy alias kept for backward compatibility with scripts that still use SYMBOL.
+SYMBOL = "ASELS.IS"
 
 # ---------------------------------------------------------------------------
 # Date ranges

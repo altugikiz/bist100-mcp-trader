@@ -147,6 +147,219 @@ def calculate_technical_score(
     return df
 
 
+def calculate_bollinger_bands(
+    df: pd.DataFrame,
+    window: int = 20,
+    num_std: float = 2,
+) -> pd.DataFrame:
+    """
+    Bollinger Bands around the Close price.
+
+    BB_Middle = SMA(window)
+    BB_Upper  = BB_Middle + num_std * rolling_std(window)
+    BB_Lower  = BB_Middle - num_std * rolling_std(window)
+
+    First (window - 1) rows are NaN.
+    """
+    df = df.copy()
+    middle = df["Close"].rolling(window=window).mean()
+    std    = df["Close"].rolling(window=window).std()
+    df["BB_Middle"] = middle
+    df["BB_Upper"]  = middle + num_std * std
+    df["BB_Lower"]  = middle - num_std * std
+    return df
+
+
+def calculate_atr(df: pd.DataFrame, window: int = 14) -> pd.DataFrame:
+    """
+    Average True Range (ATR) using Wilder's smoothing (EWM with com=window-1).
+
+    True Range = max(High-Low, |High-prev_Close|, |Low-prev_Close|)
+    First row is NaN (no previous close); ATR NaN for first (window) rows.
+    """
+    df = df.copy()
+    prev_close = df["Close"].shift(1)
+    tr = pd.concat(
+        [
+            df["High"] - df["Low"],
+            (df["High"] - prev_close).abs(),
+            (df["Low"]  - prev_close).abs(),
+        ],
+        axis=1,
+    ).max(axis=1)
+    df["ATR"] = tr.ewm(com=window - 1, min_periods=window, adjust=False).mean()
+    return df
+
+
+def calculate_kama(
+    df: pd.DataFrame,
+    er_window: int = 10,
+    fast: int = 2,
+    slow: int = 30,
+) -> pd.DataFrame:
+    """
+    Kaufman's Adaptive Moving Average (KAMA).
+
+    Efficiency Ratio (ER) = |price_change| / sum(|daily_changes|) over er_window.
+    Smoothing constant (SC) = (ER * (fast_sc - slow_sc) + slow_sc) ** 2
+      where fast_sc = 2/(fast+1), slow_sc = 2/(slow+1).
+
+    Also adds KAMA_Slope: "rising" / "falling" / "flat" based on KAMA.diff()
+    relative to KAMA.std() * 0.05 as the flat-zone threshold.
+    """
+    df = df.copy()
+    close = df["Close"].values
+    n = len(close)
+
+    fast_sc = 2.0 / (fast + 1)
+    slow_sc = 2.0 / (slow + 1)
+
+    kama = np.full(n, np.nan)
+    # Seed KAMA at the first row that has a full ER window
+    seed_idx = er_window  # index of first valid ER
+    kama[seed_idx - 1] = close[seed_idx - 1]
+
+    for i in range(seed_idx, n):
+        direction = abs(close[i] - close[i - er_window])
+        volatility = np.sum(np.abs(np.diff(close[i - er_window: i + 1])))
+        er = direction / volatility if volatility != 0 else 0.0
+        sc = (er * (fast_sc - slow_sc) + slow_sc) ** 2
+        kama[i] = kama[i - 1] + sc * (close[i] - kama[i - 1])
+
+    df["KAMA"] = kama
+    kama_series = df["KAMA"]
+    kama_diff   = kama_series.diff()
+    threshold   = kama_series.std() * 0.05
+
+    df["KAMA_Slope"] = np.where(
+        kama_diff > threshold,  "rising",
+        np.where(kama_diff < -threshold, "falling", "flat"),
+    )
+    # Keep KAMA_Slope NaN where KAMA itself is NaN
+    df.loc[kama_series.isna(), "KAMA_Slope"] = np.nan
+    return df
+
+
+def calculate_supertrend(
+    df: pd.DataFrame,
+    period: int = 10,
+    multiplier: float = 3,
+) -> pd.DataFrame:
+    """
+    Supertrend indicator based on ATR.
+
+    Upper band = (High+Low)/2 + multiplier * ATR(period)
+    Lower band = (High+Low)/2 - multiplier * ATR(period)
+
+    Direction flips when Close crosses a band.
+    Adds columns: Supertrend (line value), Supertrend_Direction ("bullish"/"bearish").
+    First `period` rows are NaN (ATR warm-up).
+    """
+    df = calculate_atr(df.copy(), window=period)
+    atr  = df["ATR"]
+    hl2  = (df["High"] + df["Low"]) / 2
+    close = df["Close"]
+
+    basic_upper = hl2 + multiplier * atr
+    basic_lower = hl2 - multiplier * atr
+
+    n = len(df)
+    final_upper = np.full(n, np.nan)
+    final_lower = np.full(n, np.nan)
+    direction   = np.full(n, np.nan)
+    supertrend  = np.full(n, np.nan)
+
+    # Find first non-NaN ATR index
+    first_valid = atr.first_valid_index()
+    if first_valid is None:
+        df["Supertrend"] = np.nan
+        df["Supertrend_Direction"] = np.nan
+        return df
+
+    start = df.index.get_loc(first_valid)
+    final_upper[start] = basic_upper.iloc[start]
+    final_lower[start] = basic_lower.iloc[start]
+    direction[start]   = -1  # seed as bearish; will be corrected immediately
+    supertrend[start]  = final_upper[start]
+
+    for i in range(start + 1, n):
+        # Upper band: only tighten (lower) if previous close was below it
+        if basic_upper.iloc[i] < final_upper[i - 1] or close.iloc[i - 1] > final_upper[i - 1]:
+            final_upper[i] = basic_upper.iloc[i]
+        else:
+            final_upper[i] = final_upper[i - 1]
+
+        # Lower band: only tighten (raise) if previous close was above it
+        if basic_lower.iloc[i] > final_lower[i - 1] or close.iloc[i - 1] < final_lower[i - 1]:
+            final_lower[i] = basic_lower.iloc[i]
+        else:
+            final_lower[i] = final_lower[i - 1]
+
+        # Direction: bullish when close > upper band, bearish when < lower band
+        if direction[i - 1] == -1:
+            direction[i] = 1 if close.iloc[i] > final_upper[i - 1] else -1
+        else:
+            direction[i] = -1 if close.iloc[i] < final_lower[i - 1] else 1
+
+        supertrend[i] = final_lower[i] if direction[i] == 1 else final_upper[i]
+
+    df["Supertrend"] = supertrend
+    dir_labels = pd.array(
+        [np.nan if np.isnan(d) else ("bullish" if d == 1 else "bearish") for d in direction],
+        dtype=object,
+    )
+    df["Supertrend_Direction"] = dir_labels
+    return df
+
+
+def calculate_ichimoku(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Ichimoku Kinko Hyo indicator.
+
+    Tenkan-sen  (Conversion): (max9  + min9)  / 2  — 9-period midpoint
+    Kijun-sen   (Base):       (max26 + min26) / 2  — 26-period midpoint
+    Senkou A    (Leading A):  (Tenkan + Kijun) / 2, shifted +26 periods forward
+    Senkou B    (Leading B):  (max52 + min52) / 2,  shifted +26 periods forward
+    Chikou Span (Lagging):    Close shifted -26 periods back
+
+    Ichimoku_State: "above_cloud" / "below_cloud" / "in_cloud"
+      compared against the cloud at today's date (Senkou A & B shifted back 26).
+    """
+    df = df.copy()
+    high = df["High"]
+    low  = df["Low"]
+
+    tenkan = (high.rolling(9).max()  + low.rolling(9).min())  / 2
+    kijun  = (high.rolling(26).max() + low.rolling(26).min()) / 2
+    senkou_a = ((tenkan + kijun) / 2).shift(26)
+    senkou_b = ((high.rolling(52).max() + low.rolling(52).min()) / 2).shift(26)
+    chikou  = df["Close"].shift(-26)
+
+    df["Tenkan"]   = tenkan
+    df["Kijun"]    = kijun
+    df["Senkou_A"] = senkou_a
+    df["Senkou_B"] = senkou_b
+    df["Chikou"]   = chikou
+
+    # Cloud boundaries at current date = Senkou values shifted back 26
+    cloud_top    = senkou_a.shift(-26)
+    cloud_bottom = senkou_b.shift(-26)
+    cloud_high   = pd.concat([cloud_top, cloud_bottom], axis=1).max(axis=1)
+    cloud_low    = pd.concat([cloud_top, cloud_bottom], axis=1).min(axis=1)
+
+    conditions = [
+        df["Close"] > cloud_high,
+        df["Close"] < cloud_low,
+    ]
+    choices = ["above_cloud", "below_cloud"]
+    df["Ichimoku_State"] = np.select(conditions, choices, default="in_cloud")
+    # Mark as NaN where cloud data is not yet available
+    cloud_missing = cloud_high.isna() | cloud_low.isna()
+    df.loc[cloud_missing, "Ichimoku_State"] = np.nan
+
+    return df
+
+
 if __name__ == "__main__":
     from data_collection import fetch_ohlcv
 

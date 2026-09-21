@@ -197,7 +197,7 @@ def build_full_pipeline(
     tech_df = calculate_technical_score(price_df, pivot_lows=pivot_lows)
 
     # --- Fundamental data ---
-    fund_df = load_fundamentals(FUNDAMENTAL_CSV_PATH)
+    fund_df = load_fundamentals("ASELS")
     fund_df = calculate_derived_ratios(fund_df)
     fund_df = calculate_market_multiples(fund_df, current_price, shares_outstanding)
     fund_df = calculate_yoy_growth(fund_df)

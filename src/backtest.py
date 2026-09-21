@@ -232,6 +232,261 @@ def print_performance_table(metrics_list: list[dict]) -> None:
     print("=" * len(header))
 
 
+# ---------------------------------------------------------------------------
+# 4 new functions: transaction costs, walk-forward split, walk-forward
+# backtest, and low-signal flag  (Section 18 requirements)
+# ---------------------------------------------------------------------------
+
+def add_transaction_costs(
+    returns_series: pd.Series,
+    position_series: pd.Series,
+    cost_bps: float = 10,
+) -> tuple[pd.Series, int]:
+    """
+    Deduct a round-trip transaction cost each time the position changes.
+
+    A cost of ``cost_bps`` basis points is subtracted from the strategy
+    return on every day where ``position_series.diff() != 0`` (i.e. any
+    entry or exit).  The cost is expressed as a fraction:
+        cost_fraction = cost_bps / 10_000
+
+    Args:
+        returns_series:  Daily strategy returns (e.g. bt["strategy_return"]).
+        position_series: Corresponding position series (0 or 1).
+        cost_bps:        One-way transaction cost in basis points (default 10 →
+                         0.10% per trade leg, 0.20% round-trip).
+
+    Returns:
+        (cost_adjusted_returns, turnover_count)
+            cost_adjusted_returns : pd.Series with the same index as inputs.
+            turnover_count        : int, number of days a position change
+                                    was detected (= number of trade legs).
+    """
+    cost_fraction = cost_bps / 10_000
+    trades        = position_series.diff().abs().fillna(0)   # 1 on change days
+    turnover_count = int((trades > 0).sum())
+
+    adjusted = returns_series.copy()
+    adjusted[trades > 0] -= cost_fraction
+    return adjusted, turnover_count
+
+
+def walk_forward_split(
+    df: pd.DataFrame,
+    n_splits: int = 4,
+    train_ratio: float = 0.6,
+) -> list[dict]:
+    """
+    Partition ``df`` into ``n_splits`` consecutive, non-overlapping
+    train/test windows (rolling walk-forward).
+
+    Each window spans  total_days / n_splits  calendar rows.  Within each
+    window the first ``train_ratio`` fraction is the training period
+    (used only for parameter selection / fitting) and the remaining
+    fraction is the out-of-sample test period (used for evaluation).
+
+    This satisfies the "rolling walk-forward periods for data-mined rules"
+    requirement from Section 18 of the project brief.
+
+    Args:
+        df:          DataFrame with a DatetimeIndex (e.g. the backtest df).
+        n_splits:    Number of consecutive windows (default 4).
+        train_ratio: Fraction of each window allocated to training
+                     (default 0.6 → 60 % train / 40 % test).
+
+    Returns:
+        List of dicts, one per split:
+            {
+                "split":       int   (1-based index),
+                "train_start": pd.Timestamp,
+                "train_end":   pd.Timestamp,
+                "test_start":  pd.Timestamp,
+                "test_end":    pd.Timestamp,
+                "train_rows":  int,
+                "test_rows":   int,
+            }
+    """
+    n = len(df)
+    window_size = n // n_splits
+    splits = []
+
+    for i in range(n_splits):
+        w_start = i * window_size
+        # Last split absorbs any leftover rows
+        w_end   = (i + 1) * window_size if i < n_splits - 1 else n
+
+        train_end_pos = w_start + int((w_end - w_start) * train_ratio)
+
+        splits.append({
+            "split":       i + 1,
+            "train_start": df.index[w_start],
+            "train_end":   df.index[train_end_pos - 1],
+            "test_start":  df.index[train_end_pos],
+            "test_end":    df.index[w_end - 1],
+            "train_rows":  train_end_pos - w_start,
+            "test_rows":   w_end - train_end_pos,
+        })
+
+    return splits
+
+
+def run_walk_forward_backtest(
+    price_df: pd.DataFrame,
+    strategy_config: dict,
+    n_splits: int = 4,
+    cost_bps: float = 10,
+) -> dict:
+    """
+    Run a walk-forward backtest: evaluate the strategy on each split's TEST
+    period only (train rows are reserved for parameter selection and never
+    used for performance measurement).
+
+    For each test window the function:
+        1. Slices ``price_df`` to the test period.
+        2. Applies ``generate_signal`` with the provided ``strategy_config``.
+        3. Runs ``run_backtest`` to obtain equity + returns.
+        4. Deducts transaction costs via ``add_transaction_costs``.
+        5. Computes Sharpe, Cumulative Return, Max Drawdown, Win Rate.
+
+    Cross-split consistency is then summarised: a high standard deviation
+    of Sharpe ratios across splits is a signal of overfitting.
+
+    Args:
+        price_df:        Full price DataFrame with 'Signal', 'Close', and
+                         score columns already attached (output of
+                         ``build_full_pipeline``).
+        strategy_config: Dict with keys buy_threshold, sell_threshold,
+                         tech_weight, fund_weight.  Passed to
+                         ``generate_signal``.
+        n_splits:        Number of walk-forward windows (default 4).
+        cost_bps:        Transaction cost per trade leg in basis points.
+
+    Returns:
+        {
+            "splits":      list[dict]  per-split metrics,
+            "summary":     dict        mean/std of Sharpe, CumReturn across splits,
+            "consistency": str         qualitative overfitting flag,
+        }
+    """
+    from strategy import generate_signal   # avoid circular import at module level
+
+    splits      = walk_forward_split(price_df, n_splits=n_splits)
+    split_rows  = []
+
+    for sp in splits:
+        test_df = price_df.loc[sp["test_start"]:sp["test_end"]].copy()
+
+        if len(test_df) < 10:
+            split_rows.append({
+                "split":             sp["split"],
+                "test_start":        str(sp["test_start"].date()),
+                "test_end":          str(sp["test_end"].date()),
+                "test_rows":         sp["test_rows"],
+                "cumulative_return": float("nan"),
+                "sharpe_ratio":      float("nan"),
+                "max_drawdown":      float("nan"),
+                "win_rate":          float("nan"),
+                "turnover":          0,
+                "signal_count":      0,
+            })
+            continue
+
+        # Re-apply signal to the test slice (scores already computed)
+        test_df["Total_Score"] = (
+            strategy_config.get("tech_weight", 0.5) * test_df["technical_score"]
+            + strategy_config.get("fund_weight", 0.5) * test_df["fundamental_score"]
+        )
+        test_df = generate_signal(
+            test_df,
+            buy_threshold  = strategy_config.get("buy_threshold",  3.0),
+            sell_threshold = strategy_config.get("sell_threshold", 1.5),
+        )
+
+        bt = run_backtest(test_df)
+
+        # Transaction-cost adjustment
+        adj_returns, turnover = add_transaction_costs(
+            bt["strategy_return"], bt["position"], cost_bps=cost_bps
+        )
+
+        # Rebuild equity from cost-adjusted returns
+        adj_equity = (1 + adj_returns.fillna(0)).cumprod()
+
+        cum_ret  = float(adj_equity.iloc[-1] - 1)
+        sharpe   = _sharpe_ratio(adj_returns)
+        mdd      = _max_drawdown(adj_equity)
+        wr       = _win_rate(adj_returns, bt["position"])
+        n_sigs   = int((test_df["Signal"] == "BUY").sum())
+
+        split_rows.append({
+            "split":             sp["split"],
+            "test_start":        str(sp["test_start"].date()),
+            "test_end":          str(sp["test_end"].date()),
+            "test_rows":         sp["test_rows"],
+            "cumulative_return": cum_ret,
+            "sharpe_ratio":      sharpe,
+            "max_drawdown":      mdd,
+            "win_rate":          wr,
+            "turnover":          turnover,
+            "signal_count":      n_sigs,
+        })
+
+    # Cross-split consistency
+    sharpes  = [r["sharpe_ratio"] for r in split_rows if not np.isnan(r["sharpe_ratio"])]
+    cum_rets = [r["cumulative_return"] for r in split_rows if not np.isnan(r["cumulative_return"])]
+
+    sharpe_std = float(np.std(sharpes)) if len(sharpes) >= 2 else float("nan")
+    # Heuristic: std > 0.5 across splits suggests overfitting
+    if np.isnan(sharpe_std):
+        consistency = "insufficient data"
+    elif sharpe_std > 0.5:
+        consistency = "HIGH VARIANCE — possible overfit (Sharpe std={:.2f})".format(sharpe_std)
+    else:
+        consistency = "stable (Sharpe std={:.2f})".format(sharpe_std)
+
+    return {
+        "splits": split_rows,
+        "summary": {
+            "mean_sharpe":       float(np.mean(sharpes))  if sharpes  else float("nan"),
+            "std_sharpe":        sharpe_std,
+            "mean_cum_return":   float(np.mean(cum_rets)) if cum_rets else float("nan"),
+            "std_cum_return":    float(np.std(cum_rets))  if len(cum_rets) >= 2 else float("nan"),
+        },
+        "consistency": consistency,
+    }
+
+
+def flag_low_signal_strategies(
+    signal_count: int,
+    min_threshold: int = 10,
+) -> str | None:
+    """
+    Warn when a strategy's backtest rests on very few signals.
+
+    A high return derived from fewer than ``min_threshold`` trade signals
+    is statistically unreliable: the result may be driven by one or two
+    lucky trades rather than a repeatable edge.  This check implements the
+    "a high return from very few events should be flagged" safeguard from
+    Section 18 of the project brief.
+
+    Args:
+        signal_count:  Total number of BUY (or actionable) signals observed
+                       in the backtest window.
+        min_threshold: Minimum number of signals below which a warning is
+                       emitted (default 10).
+
+    Returns:
+        A warning string when signal_count < min_threshold, else None.
+    """
+    if signal_count < min_threshold:
+        return (
+            f"LOW-SIGNAL WARNING: only {signal_count} BUY signal(s) generated "
+            f"(minimum recommended: {min_threshold}). "
+            f"Performance metrics may not be statistically reliable."
+        )
+    return None
+
+
 if __name__ == "__main__":
     pd.set_option("display.float_format", "{:.4f}".format)
     pd.set_option("display.max_columns", 15)
@@ -288,3 +543,80 @@ if __name__ == "__main__":
     # Equity curve chart
     output = os.path.join(RESULTS_DIR, "backtest_equity_curve.png")
     plot_equity_curves(bt["equity"], bt["bah_equity"], bist100_equity, output)
+
+    # ── NEW: transaction cost comparison ──────────────────────────────
+    SEP = "=" * 65
+    print(f"\n\n{SEP}")
+    print("TRANSACTION COST ANALYSIS (10 bps per trade leg)")
+    print(SEP)
+
+    cost_bps = 10
+    adj_returns, turnover = add_transaction_costs(
+        bt["strategy_return"], bt["position"], cost_bps=cost_bps
+    )
+    adj_equity = (1 + adj_returns.fillna(0)).cumprod()
+
+    cum_before = float(bt["equity"].iloc[-1] - 1)
+    cum_after  = float(adj_equity.iloc[-1] - 1)
+    sharpe_before = _sharpe_ratio(bt["strategy_return"])
+    sharpe_after  = _sharpe_ratio(adj_returns)
+
+    print(f"  Turnover (trade legs)        : {turnover}")
+    print(f"  Cost per leg                 : {cost_bps} bps ({cost_bps/100:.2f}%)")
+    print(f"  Total cost drag              : {turnover * cost_bps / 100:.2f}%  "
+          f"(= {turnover} × {cost_bps/100:.2f}%)")
+    print(f"  Cumulative return  pre-cost  : {cum_before*100:+.2f}%")
+    print(f"  Cumulative return  post-cost : {cum_after*100:+.2f}%")
+    print(f"  Difference                   : {(cum_after - cum_before)*100:+.2f}%")
+    print(f"  Sharpe ratio       pre-cost  : {sharpe_before:.4f}")
+    print(f"  Sharpe ratio       post-cost : {sharpe_after:.4f}")
+
+    # Low-signal check on full window
+    n_buy_signals = int((signal_df["Signal"] == "BUY").sum())
+    low_sig_warn  = flag_low_signal_strategies(n_buy_signals, min_threshold=10)
+    print(f"\n  BUY signals in full window   : {n_buy_signals}")
+    if low_sig_warn:
+        print(f"  ⚠  {low_sig_warn}")
+    else:
+        print(f"  Signal count OK (≥ 10).")
+
+    # ── NEW: walk-forward backtest ─────────────────────────────────────
+    print(f"\n\n{SEP}")
+    print("WALK-FORWARD BACKTEST  (4 splits, 60/40 train-test, 10 bps cost)")
+    print(SEP)
+
+    from config import BUY_THRESHOLD, SELL_THRESHOLD, TECH_WEIGHT, FUND_WEIGHT
+    strategy_cfg = {
+        "buy_threshold":  BUY_THRESHOLD,
+        "sell_threshold": SELL_THRESHOLD,
+        "tech_weight":    TECH_WEIGHT,
+        "fund_weight":    FUND_WEIGHT,
+    }
+
+    wf = run_walk_forward_backtest(signal_df, strategy_cfg,
+                                   n_splits=4, cost_bps=cost_bps)
+
+    # Per-split table
+    hdr = f"{'Split':<7} {'Test window':<26} {'Rows':<6} {'CumRet':>8} {'Sharpe':>8} {'MaxDD':>8} {'WinRate':>8} {'Trades':>7} {'BUY#':>6}"
+    print(hdr)
+    print("-" * len(hdr))
+    for r in wf["splits"]:
+        window = f"{r['test_start']} → {r['test_end']}"
+        cum    = f"{r['cumulative_return']*100:+.2f}%" if not np.isnan(r["cumulative_return"]) else "   n/a"
+        sh     = f"{r['sharpe_ratio']:+.3f}"           if not np.isnan(r["sharpe_ratio"])      else "   n/a"
+        mdd    = f"{r['max_drawdown']*100:.2f}%"       if not np.isnan(r["max_drawdown"])      else "   n/a"
+        wr     = f"{r['win_rate']*100:.1f}%"           if not np.isnan(r["win_rate"])           else "   n/a"
+        print(f"{r['split']:<7} {window:<26} {r['test_rows']:<6} {cum:>8} {sh:>8} {mdd:>8} {wr:>8} {r['turnover']:>7} {r['signal_count']:>6}")
+
+        # Per-split low-signal flag
+        w = flag_low_signal_strategies(r["signal_count"], min_threshold=10)
+        if w:
+            print(f"        ⚠  {w}")
+
+    # Summary
+    s = wf["summary"]
+    print(f"\n  Mean Sharpe across splits    : {s['mean_sharpe']:+.4f}")
+    print(f"  Std  Sharpe across splits    : {s['std_sharpe']:.4f}")
+    print(f"  Mean CumReturn across splits : {s['mean_cum_return']*100:+.2f}%")
+    print(f"  Std  CumReturn across splits : {s['std_cum_return']*100:.2f}%")
+    print(f"\n  Consistency verdict          : {wf['consistency']}")
