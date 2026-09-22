@@ -1,6 +1,6 @@
 # BIST 100 MCP Trader
 
-A CSE-481 Engineering Economics term project that performs end-to-end quantitative analysis of an ASELS.IS (Aselsan) stock listed on Borsa Istanbul. The project combines technical indicator scoring, Fintables-sourced fundamental data, a rule-based backtesting engine, and a sensitivity analysis suite into a unified pipeline. It also exposes the entire analysis stack as an **MCP (Model Context Protocol) AI agent**, allowing a large language model such as Claude to query live price data, fundamental metrics, and backtest results through structured tool calls.
+A CSE-481 Engineering Economics term project covering a **30-stock BIST 100 universe** across four mandatory research scenarios: technical/fundamental scoring, sector-relative and macro/news context layers, walk-forward backtesting with transaction costs, and a stateful MCP agent harness. The project builds a point-in-time fundamental pipeline (anti-look-ahead), curated news-event reaction analysis, and a five-version harness experiment (A–E) documenting how tool-use enforcement eliminates hallucination. The entire analysis stack is exposed as an **MCP (Model Context Protocol) AI agent** with 11 tool endpoints, allowing Claude Desktop to run a full evidence-bundle analysis session — including human review and JSON audit logging — through structured tool calls.
 
 ---
 
@@ -14,7 +14,7 @@ A CSE-481 Engineering Economics term project that performs end-to-end quantitati
 - **Backtesting engine** — chronological backtest with look-ahead-bias prevention, equity curves, Sharpe ratio, max drawdown, and win rate
 - **Sensitivity analysis** — sweep over BUY thresholds and score weight configurations to find the optimal parameter set
 - **Optional ML prediction** — Logistic Regression and Random Forest classifiers with chronological train/test split
-- **MCP AI agent** — six tool endpoints exposed via FastMCP; connects to Claude Desktop over stdio transport
+- **MCP AI agent** — 11 tool endpoints exposed via FastMCP; connects to Claude Desktop over stdio transport; supports full evidence-bundle sessions with human review and JSON audit logging
 
 ---
 
@@ -153,7 +153,7 @@ Add the following entry to your `claude_desktop_config.json`:
 }
 ```
 
-Replace `<your-path>` with the absolute path to the cloned repository. Restart Claude Desktop after editing the file. Once connected, Claude can call six tools:
+Replace `<your-path>` with the absolute path to the cloned repository. Restart Claude Desktop after editing the file. Once connected, Claude can call 11 tools:
 
 | Tool | Description |
 |---|---|
@@ -163,6 +163,11 @@ Replace `<your-path>` with the absolute path to the cloned repository. Restart C
 | `get_fundamental_metrics` | All financial metrics for a given quarter |
 | `get_fundamental_score` | Fundamental quality score (0–5) with criterion breakdown |
 | `run_backtest_summary` | Strategy performance metrics for a given parameter set |
+| `start_analysis_session` | Open a new harness session for a ticker (START → CHECK_DATA_QUALITY) |
+| `run_full_analysis` | Run the full evidence-bundle pipeline and risk gate for an open session |
+| `get_recommended_action` | Return the 8-label analytical action for an open session |
+| `submit_human_review` | Record ACCEPT / MODIFY / REJECT verdict and close the session |
+| `get_session_replay` | Print the full Section-27 audit replay for a completed session |
 
 ---
 
@@ -200,7 +205,8 @@ All results are based on ASELS.IS data from 2024-01-01 to 2025-12-31 using the f
 |---|---|
 | [`docs/report/`](docs/report/) | Final term project report (`ASELS_BIST100_Harness_Final_Report.docx`) |
 | [`docs/presentation/`](docs/presentation/) | Project presentation slides (`BIST100_Harness_Presentation.pptx`) |
-| [`docs/mcp_demo/`](docs/mcp_demo/) | Five screenshots showing Claude Desktop calling all six MCP tools to analyse ASELS.IS end-to-end (read part1 → part5 in order) |
+| [`docs/mcp_demo/`](docs/mcp_demo/) | Five screenshots showing Claude Desktop calling all 11 MCP tools to analyse ASELS.IS end-to-end (read part1 → part5 in order) |
+| [`docs/DATA_DICTIONARY.md`](docs/DATA_DICTIONARY.md) | Field-level documentation for all data sources, CSV schemas, and module outputs |
 
 ---
 
