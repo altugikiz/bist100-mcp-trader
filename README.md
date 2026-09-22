@@ -198,8 +198,8 @@ All results are based on ASELS.IS data from 2024-01-01 to 2025-12-31 using the f
 
 | Folder | Contents |
 |---|---|
-| [`docs/report/`](docs/report/) | Final term project report (`ASELS_Term_Project_Final_Report.docx`) |
-| [`docs/presentation/`](docs/presentation/) | Project presentation slides (`ASELS_Term_Project_Presentation_EN.pptx`) |
+| [`docs/report/`](docs/report/) | Final term project report (`ASELS_BIST100_Harness_Final_Report.docx`) |
+| [`docs/presentation/`](docs/presentation/) | Project presentation slides (`BIST100_Harness_Presentation.pptx`) |
 | [`docs/mcp_demo/`](docs/mcp_demo/) | Five screenshots showing Claude Desktop calling all six MCP tools to analyse ASELS.IS end-to-end (read part1 → part5 in order) |
 
 ---
