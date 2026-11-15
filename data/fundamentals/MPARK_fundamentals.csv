@@ -1,0 +1,14 @@
+# Monetary values (revenue, ebitda, net_profit, total_assets, shareholders_equity, net_debt): million TRY
+# Source: Fintables periodic view, TRY, as displayed on 2026-11-12 (inflation-adjusted to the 2026/9 index where Fintables applies it)
+# Quarterly values derived from YTD cumulative figures via Q_n - Q_(n-1).
+# ebitda = operating profit + depreciation & amortisation; net_profit = parent-company share;
+# shareholders_equity = parent-company equity; net_debt = short+long financial debt - cash and equivalents.
+period,revenue,ebitda,net_profit,total_assets,shareholders_equity,net_debt
+2024Q1,16253,4177,1395,67162,30475,7396
+2024Q2,14505,3291,1979,67084,32088,7528
+2024Q3,16916,4499,3615,75355,35461,6531
+2024Q4,16910,4047,1489,76953,36819,8561
+2025Q1,17378,4504,1729,83041,38609,10261
+2025Q2,16556,4126,1457,91830,39713,12271
+2025Q3,16949,4854,2100,94880,41748,15843
+2025Q4,17608,5434,1597,102191,43301,14866

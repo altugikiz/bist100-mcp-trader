@@ -1,8 +1,9 @@
 """
 MCP server for BIST100 MCP Trader.
 
-Exposes six tools that wrap existing analysis modules so that an LLM agent
-(Claude, GPT-4o, etc.) can query live price data, technical indicators,
+Exposes 18 tools (6 analytics, 5 harness-control, 7 research) that wrap the
+analysis modules for the 30-stock BIST 100 universe so that an LLM agent
+(local Qwen3 via Ollama, Claude, etc.) can query live price data, technical indicators,
 support/resistance levels, fundamental metrics, and backtest results without
 writing any code itself.
 
@@ -57,7 +58,13 @@ from analysis.sector_analysis import rank_universe_by_sector
 from analysis.reversal_events import build_event_log
 from analysis.fundamental_reaction import calculate_quarterly_changes
 from analysis.point_in_time import build_point_in_time_fundamentals
-from harness.evidence import build_evidence_bundle, RiskGate
+from harness.evidence import build_evidence_bundle, RiskGate, EvidenceBundle
+from analysis.calendar_patterns import (
+    calculate_weekday_returns,
+    test_weekday_pattern as _wd_test,
+    apply_multiple_testing_correction,
+)
+from analysis.news_events import get_news_events as _get_news
 from harness.action_space import determine_action
 from harness.decision_log import log_decision, add_human_review, load_decision_log, replay_analysis
 from harness.harness import AnalysisSession, advance_state, record_tool_call
@@ -99,11 +106,14 @@ def _sanitise(obj):
 mcp = FastMCP(
     name="bist100-trader",
     instructions=(
-        "Use these tools to analyse ASELS.IS (Aselsan) stock. "
-        "Start with get_stock_history to see recent prices, then "
-        "calculate_indicators for trend signals, find_support_resistance for "
-        "key price levels, get_fundamental_metrics / calculate_fundamental_score "
-        "for valuation, and run_backtest_summary for overall strategy performance."
+        "Analyse BIST 100 stocks (30-ticker study universe). For a single-stock "
+        "analysis call start_analysis_session, run_full_analysis, "
+        "get_recommended_action and get_session_replay in that order. Use "
+        "rank_sector_relative_strength, test_weekday_pattern, "
+        "detect_reversal_events, get_macro_context, get_news_events and "
+        "check_data_quality for research questions. All numbers must come from "
+        "tool outputs; the human reviewer submits the final verdict via "
+        "submit_human_review."
     ),
 )
 
@@ -451,6 +461,13 @@ def _find_safe_quarter(ticker: str, price_end: pd.Timestamp) -> str | None:
 def _build_fundamental_result(ticker: str, safe_quarter: str) -> dict:
     """Compute fundamental score and QoQ changes for safe_quarter."""
     raw       = load_fundamentals(ticker)
+    # Basic-column CSVs (no market multiples) have no pe_ratio; keep the
+    # P/E criterion NaN instead of crashing.
+    if "pe_ratio" not in raw.columns:
+        raw["pe_ratio"] = float("nan")
+    # A CSV whose core statement lines are all empty carries no information.
+    if raw[["revenue", "net_profit"]].isna().all().all():
+        raise ValueError(f"Fundamentals for {ticker} contain no data.")
     fund_full = (
         raw
         .pipe(lambda d: calculate_derived_ratios(d.copy()))
@@ -566,7 +583,16 @@ def start_analysis_session(ticker: str) -> dict:
 
     # LOAD_MARKET_DATA
     advance_state(session, "LOAD_MARKET_DATA")
-    df = _load_price_df(ticker)
+    try:
+        df = _load_price_df(ticker)
+    except Exception:
+        df = None
+    if df is None or len(df) == 0:
+        import difflib
+        close = difflib.get_close_matches(ticker, list(UNIVERSE["ticker"]), n=3, cutoff=0.6)
+        hint = f" Did you mean: {', '.join(close)}?" if close else ""
+        raise ValueError(f"No price data for ticker '{ticker}'.{hint} "
+                         "Use the exact ticker code from the user's request.")
     record_tool_call(session, "get_stock_history",
                      f"ticker={ticker}.IS  rows={len(df)}",
                      f"start={df.index[0].date()}  end={df.index[-1].date()}")
@@ -685,9 +711,13 @@ def run_full_analysis(session_id: str) -> dict:
     # ── LOAD_FUNDAMENTALS ─────────────────────────────────────────────
     advance_state(session, "LOAD_FUNDAMENTALS")
     safe_q = _find_safe_quarter(ticker, snap)
+    fundamental_result = None
     if safe_q:
-        fundamental_result = _build_fundamental_result(ticker, safe_q)
-    else:
+        try:
+            fundamental_result = _build_fundamental_result(ticker, safe_q)
+        except Exception:
+            safe_q = None  # fundamentals unusable (missing/empty data)
+    if fundamental_result is None:
         fundamental_result = {"fundamental_score": 0, "net_profit_growth_qoq": None,
                               "revenue_growth_qoq": None, "prev_net_profit_growth_qoq": None,
                               "prev_revenue_growth_qoq": None, "roe": None, "net_debt_ebitda": None}
@@ -709,10 +739,22 @@ def run_full_analysis(session_id: str) -> dict:
     advance_state(session, "BUILD_EVIDENCE")
     bundle     = build_evidence_bundle(ticker, technical_result, fundamental_result,
                                        sector_result, event_result, macro_snapshot)
-    raw_fund   = load_fundamentals(ticker).reset_index()
-    pit        = build_point_in_time_fundamentals(ticker, raw_fund)
+    try:
+        raw_fund = load_fundamentals(ticker).reset_index()
+        pit      = build_point_in_time_fundamentals(ticker, raw_fund)
+    except Exception:
+        pit = None  # no usable fundamentals: gate still runs on price data
+    if safe_q is None:
+        pit = None  # nothing usable to scan; avoid a legacy full-scan block
     gate_result = RiskGate.check_data_quality(bundle, df, pit,
                                                evaluated_quarter=safe_q)
+    if safe_q is None:
+        gate_result["warnings"].append(
+            f"No usable point-in-time fundamentals for {ticker}; "
+            "fundamental evidence is missing (score defaults to 0)."
+        )
+        if gate_result["status"] == "PASS":
+            gate_result["status"] = "PASS_WITH_WARNINGS"
     record_tool_call(session, "build_evidence_bundle",
                      f"ticker={ticker}",
                      f"committed={len(bundle.committed_evidence)}  gate={gate_result['status']}")
@@ -907,6 +949,341 @@ def get_session_replay(session_id: str) -> dict:
         replay_analysis(log_entry)
 
     return {"replay_text": buf.getvalue(), "log_path": log_path}
+
+
+# ---------------------------------------------------------------------------
+# Stateless research tools (brief Section 22)
+# These wrap existing analysis modules so an agent can call each research
+# scenario directly, without opening a harness session.
+# ---------------------------------------------------------------------------
+
+def _default_snap_date() -> pd.Timestamp:
+    """Most recent trading day available in the cached XU100 series."""
+    return _load_price_df("XU100").index[-1]
+
+
+def _summarise_events(log: pd.DataFrame, snap: pd.Timestamp) -> dict:
+    """Per-event-type count, bounce rate and mean 5-day forward return."""
+    out = {}
+    if log is None or log.empty:
+        return out
+    for etype, grp in log.groupby("event_type"):
+        fwd5  = grp["forward_return_5d"].dropna()
+        dates = pd.to_datetime(grp["event_date"])
+        out[etype] = {
+            "n":               int(len(grp)),
+            "n_with_5d_return": int(len(fwd5)),
+            "bounce_rate_5d":  float((fwd5 > 0).mean()) if len(fwd5) else None,
+            "avg_fwd_5d":      float(fwd5.mean())        if len(fwd5) else None,
+            "median_fwd_5d":   float(fwd5.median())      if len(fwd5) else None,
+            "days_since_last": int((snap - dates.max()).days) if len(dates) else None,
+            "low_sample_warning": bool(len(grp) < 10),
+        }
+    return out
+
+
+@mcp.tool()
+def rank_sector_relative_strength(
+    sector_group: str = "",
+    date: str = "",
+) -> dict:
+    """
+    Rank stocks by sector-relative lag score (stock return minus sector-median
+    return) over 5, 10 and 20 trading days.  A strongly negative lag score
+    means the stock is lagging its peers; it is a research flag, NOT a BUY.
+
+    Args:
+        sector_group: Optional sector group filter, e.g. 'Financials',
+                      'Retail', 'Automotive'.  Empty string returns all 30
+                      stocks.
+        date:         Snapshot date 'YYYY-MM-DD'.  Empty string uses the most
+                      recent trading day in the data cache.
+
+    Returns:
+        {"as_of": str, "rows": [{ticker, sector_group, benchmark_type,
+         lag_score_5d, lag_score_10d, lag_score_20d, intra_group_rank}, ...]}
+        sorted most-laggard first.  Lag scores are fractions (-0.05 = -5 pp).
+    """
+    snap = pd.Timestamp(date) if date else _default_snap_date()
+    rank_df = rank_universe_by_sector(snap, windows=[5, 10, 20])
+    if sector_group:
+        rank_df = rank_df[rank_df["sector_group"].str.lower() == sector_group.lower()]
+        if rank_df.empty:
+            groups = sorted(UNIVERSE["sector_group"].unique().tolist())
+            return {"error": f"Unknown sector_group '{sector_group}'.", "valid_sector_groups": groups}
+    return _sanitise({
+        "as_of": str(snap.date()),
+        "rows":  rank_df.to_dict("records"),
+    })
+
+
+@mcp.tool()
+def test_weekday_pattern(
+    ticker: str,
+    start_date: str = "",
+    end_date: str = "",
+) -> dict:
+    """
+    Test whether each weekday's mean return differs from the stock's overall
+    mean (one-sample t-test), with Bonferroni correction and an out-of-sample
+    check (first 70% of days = train, last 30% = test).
+
+    Weekday patterns are frequently spurious.  Treat a day as stable only if
+    it is significant after correction AND keeps its sign out of sample.
+
+    Args:
+        ticker:     Short BIST ticker, e.g. 'THYAO'.
+        start_date: Optional 'YYYY-MM-DD' lower bound.
+        end_date:   Optional 'YYYY-MM-DD' upper bound.
+
+    Returns:
+        {"ticker", "period", "n_days", "weekdays": [{Weekday, N, Mean_Return,
+         Median_Return, Positive_Rate, P_Value, Significant_Raw,
+         Significant_Bonferroni, train_mean, test_mean, same_sign_oos}, ...],
+         "note": str}
+    """
+    ticker = ticker.upper()
+    df = _load_price_df(ticker)
+    if start_date:
+        df = df.loc[df.index >= pd.Timestamp(start_date)]
+    if end_date:
+        df = df.loc[df.index <= pd.Timestamp(end_date)]
+    df = calculate_weekday_returns(df)
+
+    res = _wd_test(df, ticker)
+    if res.empty:
+        return {"error": f"Not enough data for {ticker} in the requested period."}
+    res = apply_multiple_testing_correction(res)
+
+    # Out-of-sample stability: chronological 70/30 split
+    clean = df.dropna(subset=["Daily_Return", "Weekday"])
+    split = int(len(clean) * 0.7)
+    train, test = clean.iloc[:split], clean.iloc[split:]
+    train_m = train.groupby("Weekday")["Daily_Return"].mean()
+    test_m  = test.groupby("Weekday")["Daily_Return"].mean()
+    res["train_mean"] = res["Weekday"].map(train_m)
+    res["test_mean"]  = res["Weekday"].map(test_m)
+    res["same_sign_oos"] = (res["train_mean"] * res["test_mean"]) > 0
+
+    cols = ["Weekday", "N", "Mean_Return", "Median_Return", "Positive_Rate",
+            "P_Value", "Significant_Raw", "Significant_Bonferroni",
+            "train_mean", "test_mean", "same_sign_oos"]
+    return _sanitise({
+        "ticker": ticker,
+        "period": f"{clean.index[0].date()} to {clean.index[-1].date()}",
+        "n_days": int(len(clean)),
+        "weekdays": res[cols].to_dict("records"),
+        "note": ("Bonferroni corrects over 5 weekday tests for this one ticker only; "
+                 "testing many tickers raises the multiple-testing risk further. "
+                 "No transaction costs are applied here."),
+    })
+
+
+@mcp.tool()
+def detect_reversal_events(
+    ticker: str,
+    event_type: str = "",
+    last_n: int = 5,
+) -> dict:
+    """
+    Detect timestamped technical reversal events (Bollinger touches, RSI
+    extrema, Supertrend flips, KAMA crosses, Ichimoku events) and report
+    historical statistics: count, 5-day bounce rate and forward returns.
+
+    Args:
+        ticker:     Short BIST ticker, e.g. 'ASELS'.
+        event_type: Optional exact event type to filter (see "event_types" in
+                    the result).  Empty string returns all types.
+        last_n:     How many of the most recent events to list per request.
+
+    Returns:
+        {"ticker", "as_of", "event_types": [...], "statistics": {type: {n,
+         bounce_rate_5d, avg_fwd_5d, median_fwd_5d, days_since_last,
+         low_sample_warning}}, "recent_events": [...]}
+    """
+    ticker = ticker.upper()
+    df_raw = _load_price_df(ticker)
+    df, _  = _build_price_with_indicators(df_raw.copy())
+    snap   = df.index[-1]
+    log    = build_event_log(df, ticker)
+    if log.empty:
+        return {"ticker": ticker, "as_of": str(snap.date()), "event_types": [], "statistics": {}, "recent_events": []}
+
+    all_types = sorted(log["event_type"].unique().tolist())
+    if event_type:
+        if event_type not in all_types:
+            return {"error": f"Unknown event_type '{event_type}'.", "event_types": all_types}
+        log = log[log["event_type"] == event_type]
+
+    recent = log.sort_values("event_date").tail(max(1, int(last_n)))
+    keep   = ["event_date", "event_type", "close_price", "rsi_state", "supertrend_state",
+              "kama_slope", "ichimoku_state", "volume_regime",
+              "forward_return_1d", "forward_return_3d", "forward_return_5d", "forward_return_10d"]
+    return _sanitise({
+        "ticker":        ticker,
+        "as_of":         str(snap.date()),
+        "event_types":   all_types,
+        "statistics":    _summarise_events(log, snap),
+        "recent_events": recent[[c for c in keep if c in recent.columns]].to_dict("records"),
+    })
+
+
+@mcp.tool()
+def get_macro_context(start_date: str = "", end_date: str = "") -> dict:
+    """
+    Return the macro context (USD/TRY, EUR/TRY, TCMB policy rate, TUIK CPI
+    year-over-year, Fed funds rate) for a date range, with start/end values
+    and changes.
+
+    Args:
+        start_date: 'YYYY-MM-DD' (empty = 30 days before end_date).
+        end_date:   'YYYY-MM-DD' (empty = last available date).
+
+    Returns:
+        {"start": {...}, "end": {...}, "change": {...}, "notes": [...]}
+    """
+    path  = os.path.join(_PROJ_ROOT, "data", "macro", "macro_daily.csv")
+    macro = pd.read_csv(path, index_col="Date", parse_dates=True)
+    end   = pd.Timestamp(end_date) if end_date else macro.index[-1]
+    start = pd.Timestamp(start_date) if start_date else end - pd.Timedelta(days=30)
+    if end > macro.index[-1] or start < macro.index[0]:
+        return {"error": f"Macro data covers {macro.index[0].date()} to {macro.index[-1].date()} only."}
+    sl = macro.loc[start:end]
+    if sl.empty:
+        return {"error": "No macro rows in the requested range."}
+    first, last = sl.iloc[0], sl.iloc[-1]
+    change = {
+        "usdtry_pct":      float((last["usdtry"] / first["usdtry"] - 1) * 100),
+        "eurtry_pct":      float((last["eurtry"] / first["eurtry"] - 1) * 100),
+        "tcmb_rate_pp":    float(last["tcmb_rate"] - first["tcmb_rate"]),
+        "fed_rate_pp":     float(last["fed_rate"] - first["fed_rate"]),
+    }
+    return _sanitise({
+        "start":  {"date": sl.index[0], **first.to_dict()},
+        "end":    {"date": sl.index[-1], **last.to_dict()},
+        "change": change,
+        "notes": [
+            "tufe_yoy is linearly interpolated between published anchor points "
+            "and is NaN before 2024-05-31.",
+            "tcmb_rate and fed_rate are step series forward-filled from decision dates.",
+        ],
+    })
+
+
+@mcp.tool()
+def get_news_events(ticker: str, start_date: str = "", end_date: str = "") -> dict:
+    """
+    Return curated, timestamped news/corporate events for a ticker with source
+    metadata.  The set is a small hand-curated list (no licensed news feed and
+    no speech-to-text), so treat absence of events as "not covered", not as
+    "nothing happened".
+
+    Args:
+        ticker:     Short BIST ticker, e.g. 'ASELS'.
+        start_date: Optional 'YYYY-MM-DD' lower bound.
+        end_date:   Optional 'YYYY-MM-DD' upper bound.
+
+    Returns:
+        {"ticker", "n_events", "events": [...], "coverage_note": str}
+    """
+    events = _get_news(ticker, start_date or None, end_date or None)
+    return _sanitise({
+        "ticker":   ticker.upper(),
+        "n_events": len(events),
+        "events":   events,
+        "coverage_note": ("Curated list only; contextual evidence, not ground truth. "
+                          "Speech-to-text commentary is not implemented."),
+    })
+
+
+@mcp.tool()
+def check_data_quality(ticker: str) -> dict:
+    """
+    Run the Risk & Data Quality gate for a ticker without opening a session:
+    universe membership, price-history NaN rate, look-ahead check on fundamental
+    disclosure dates, sector-peer availability, number of reversal events,
+    macro completeness and data freshness.
+
+    Args:
+        ticker: Short BIST ticker, e.g. 'ASELS'.
+
+    Returns:
+        {"ticker", "status": PASS | PASS_WITH_WARNINGS | HARD_BLOCK,
+         "blocks": [...], "warnings": [...], "price_end": str,
+         "fundamentals_available": bool}
+    """
+    ticker = ticker.upper()
+    if not (UNIVERSE["ticker"] == ticker).any():
+        return {"ticker": ticker, "status": "HARD_BLOCK",
+                "blocks": [f"Ticker '{ticker}' is not in the 30-stock coverage universe."],
+                "warnings": []}
+
+    df_raw = _load_price_df(ticker)
+    df, _  = _build_price_with_indicators(df_raw.copy())
+    snap   = df.index[-1]
+
+    bundle = EvidenceBundle(ticker)
+    bundle.observed_context["events"] = _summarise_events(build_event_log(df, ticker), snap)
+    try:
+        bundle.observed_context["macro"] = _build_macro_snapshot(snap)
+    except Exception:
+        bundle.observed_context["macro"] = {}
+
+    pit, safe_q, extra_warnings = None, None, []
+    try:
+        raw = load_fundamentals(ticker).reset_index()
+        pit = build_point_in_time_fundamentals(ticker, raw)
+        safe_q = _find_safe_quarter(ticker, snap)
+    except Exception:
+        extra_warnings.append(f"No fundamental data available for {ticker}; "
+                              "fundamental evidence will be missing.")
+
+    gate = RiskGate.check_data_quality(bundle, df, pit, evaluated_quarter=safe_q)
+    warnings = list(gate["warnings"]) + extra_warnings
+    if not bundle.observed_context["macro"]:
+        warnings.append("Macro snapshot unavailable for the price end date.")
+    stale_days = (pd.Timestamp.today().normalize() - snap).days
+    if stale_days > 30:
+        warnings.append(f"Price data ends {snap.date()} ({stale_days} days old); results are historical only.")
+
+    status = gate["status"]
+    if status != "HARD_BLOCK" and warnings:
+        status = "PASS_WITH_WARNINGS"
+    return _sanitise({
+        "ticker": ticker, "status": status,
+        "blocks": gate["blocks"], "warnings": warnings,
+        "price_end": str(snap.date()),
+        "fundamentals_available": pit is not None,
+    })
+
+
+@mcp.tool(name="build_evidence_bundle")
+def build_evidence_bundle_tool(session_id: str) -> dict:
+    """
+    Return the full evidence bundle for a session whose run_full_analysis has
+    completed: ALL observed features and the smaller COMMITTED evidence set
+    that may be cited in an explanation.  Cite only committed evidence.
+
+    Args:
+        session_id: The session_id returned by start_analysis_session.
+
+    Returns:
+        {"ticker", "observed_context": {...}, "committed_evidence": [...],
+         "n_observed": int, "n_committed": int}
+    """
+    store = _SESSIONS.get(session_id)
+    if store is None:
+        return {"error": f"session_id '{session_id}' not found. Call start_analysis_session first."}
+    bundle = store.get("bundle")
+    if bundle is None:
+        return {"error": "No evidence bundle yet. Call run_full_analysis first."}
+    return _sanitise({
+        "ticker":              bundle.ticker,
+        "observed_context":    bundle.observed_context,
+        "committed_evidence":  bundle.committed_evidence,
+        "n_observed":          len(bundle.observed_context),
+        "n_committed":         len(bundle.committed_evidence),
+    })
 
 
 # ---------------------------------------------------------------------------

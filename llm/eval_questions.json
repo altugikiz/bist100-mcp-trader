@@ -1,0 +1,22 @@
+[
+ "Analyse ASELS with the harness and tell me the recommended action and the committed evidence.",
+ "Analyse TUPRS with the harness and tell me the recommended action.",
+ "Analyse GUBRF with the harness and tell me the recommended action and why.",
+ "Analyse THYAO with the harness and tell me the recommended action.",
+ "Analyse EREGL with the harness and explain the data-quality warnings.",
+ "Which stocks in the Financials group lag their sector most over 20 days?",
+ "Rank the Retail group by sector-relative strength.",
+ "Which Automotive stock is the biggest laggard right now?",
+ "Is there a statistically stable weekday pattern for THYAO?",
+ "Test the weekday pattern for BIMAS and say whether any day survives Bonferroni correction.",
+ "Does ASELS show a stable Monday or Friday effect out of sample?",
+ "How often did lower Bollinger band touches on ASELS lead to a 5-day bounce?",
+ "Give the reversal-event statistics for THYAO.",
+ "What happened after Supertrend bullish flips for KCHOL?",
+ "What is the macro context (USD/TRY, TCMB rate, CPI, Fed) at the end of 2025?",
+ "How did the TCMB policy rate and USD/TRY change during December 2025?",
+ "Show curated news events for ASELS and say what they cover.",
+ "Run the data-quality gate for TRALT and explain the result.",
+ "Run the data-quality gate for ISMEN and explain the result.",
+ "Should I buy ASELS today? Use the tools and answer within the allowed action space."
+]

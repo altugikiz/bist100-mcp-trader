@@ -1,0 +1,350 @@
+{
+  "session_id": "239128f9-0399-4767-9875-386c732b2765",
+  "ticker": "TUPRS",
+  "sector_group": "Petroleum-Refining",
+  "analysis_timestamp": "2026-11-13T05:38:03+00:00",
+  "market_data_period": {
+    "start": "2023-01-02",
+    "end": "2025-12-31"
+  },
+  "data_versions": {
+    "price_data": "as of 2025-12-31",
+    "fundamentals": "2025Q3"
+  },
+  "tool_calls": [
+    {
+      "timestamp": "2026-11-13T05:38:03+00:00",
+      "state": "SELECT_UNIVERSE",
+      "tool_name": "has_sector_peers",
+      "input_summary": "ticker=TUPRS",
+      "output_summary": "in_universe=True"
+    },
+    {
+      "timestamp": "2026-11-13T05:38:03+00:00",
+      "state": "LOAD_MARKET_DATA",
+      "tool_name": "get_stock_history",
+      "input_summary": "ticker=TUPRS.IS  rows=749",
+      "output_summary": "start=2023-01-02  end=2025-12-31"
+    },
+    {
+      "timestamp": "2026-11-13T05:38:03+00:00",
+      "state": "CHECK_DATA_QUALITY",
+      "tool_name": "check_data_quality",
+      "input_summary": "ticker=TUPRS",
+      "output_summary": "Close_NaN=0.0%  rows=749"
+    },
+    {
+      "timestamp": "2026-11-13T05:38:03+00:00",
+      "state": "CALCULATE_TECHNICALS",
+      "tool_name": "calculate_technical_score",
+      "input_summary": "ticker=TUPRS as_of=2025-12-31",
+      "output_summary": "score=2/5  KAMA=flat"
+    },
+    {
+      "timestamp": "2026-11-13T05:38:03+00:00",
+      "state": "RUN_SECTOR_RELATIVE_ANALYSIS",
+      "tool_name": "rank_universe_by_sector",
+      "input_summary": "date=2025-12-31",
+      "output_summary": "lag_20d=-0.075  catchup=True"
+    },
+    {
+      "timestamp": "2026-11-13T05:38:03+00:00",
+      "state": "RUN_PATTERN_AND_REVERSAL_ANALYSIS",
+      "tool_name": "build_event_log",
+      "input_summary": "ticker=TUPRS",
+      "output_summary": "event_types=13"
+    },
+    {
+      "timestamp": "2026-11-13T05:38:03+00:00",
+      "state": "LOAD_FUNDAMENTALS",
+      "tool_name": "calculate_fundamental_score",
+      "input_summary": "ticker=TUPRS safe_quarter=2025Q3",
+      "output_summary": "score=2/5"
+    },
+    {
+      "timestamp": "2026-11-13T05:38:03+00:00",
+      "state": "LOAD_MACRO_CONTEXT",
+      "tool_name": "build_daily_macro_series",
+      "input_summary": "end=2025-12-31",
+      "output_summary": "tcmb=38.0%  usdtry=42.95"
+    },
+    {
+      "timestamp": "2026-11-13T05:38:03+00:00",
+      "state": "BUILD_EVIDENCE",
+      "tool_name": "build_evidence_bundle",
+      "input_summary": "ticker=TUPRS",
+      "output_summary": "committed=8  gate=PASS_WITH_WARNINGS"
+    },
+    {
+      "timestamp": "2026-11-13T05:38:03+00:00",
+      "state": "GENERATE_EXPLANATION",
+      "tool_name": "generate_explanation",
+      "input_summary": "ticker=TUPRS",
+      "output_summary": "action=POTENTIAL_CATCH_UP_CANDIDATE"
+    }
+  ],
+  "state_history": [
+    {
+      "timestamp": "2026-11-13T05:38:03+00:00",
+      "state": "START"
+    },
+    {
+      "timestamp": "2026-11-13T05:38:03+00:00",
+      "state": "SELECT_UNIVERSE"
+    },
+    {
+      "timestamp": "2026-11-13T05:38:03+00:00",
+      "state": "LOAD_MARKET_DATA"
+    },
+    {
+      "timestamp": "2026-11-13T05:38:03+00:00",
+      "state": "CHECK_DATA_QUALITY"
+    },
+    {
+      "timestamp": "2026-11-13T05:38:03+00:00",
+      "state": "CALCULATE_TECHNICALS"
+    },
+    {
+      "timestamp": "2026-11-13T05:38:03+00:00",
+      "state": "RUN_SECTOR_RELATIVE_ANALYSIS"
+    },
+    {
+      "timestamp": "2026-11-13T05:38:03+00:00",
+      "state": "RUN_PATTERN_AND_REVERSAL_ANALYSIS"
+    },
+    {
+      "timestamp": "2026-11-13T05:38:03+00:00",
+      "state": "LOAD_FUNDAMENTALS"
+    },
+    {
+      "timestamp": "2026-11-13T05:38:03+00:00",
+      "state": "LOAD_MACRO_CONTEXT"
+    },
+    {
+      "timestamp": "2026-11-13T05:38:03+00:00",
+      "state": "LOAD_NEWS_AND_SPEECH_CONTEXT"
+    },
+    {
+      "timestamp": "2026-11-13T05:38:03+00:00",
+      "state": "BUILD_EVIDENCE"
+    },
+    {
+      "timestamp": "2026-11-13T05:38:03+00:00",
+      "state": "PREVIEW_STRATEGIES"
+    },
+    {
+      "timestamp": "2026-11-13T05:38:03+00:00",
+      "state": "RUN_BACKTEST"
+    },
+    {
+      "timestamp": "2026-11-13T05:38:03+00:00",
+      "state": "RISK_GATE"
+    },
+    {
+      "timestamp": "2026-11-13T05:38:03+00:00",
+      "state": "GENERATE_EXPLANATION"
+    },
+    {
+      "timestamp": "2026-11-13T05:38:03+00:00",
+      "state": "HUMAN_REVIEW"
+    }
+  ],
+  "observed_context": {
+    "technical": {
+      "technical_score": 2,
+      "KAMA_Slope": "flat",
+      "Supertrend_Direction": "bearish",
+      "Ichimoku_State": null,
+      "RSI14": 40.18593887575564
+    },
+    "fundamental": {
+      "net_profit_growth_qoq": 0.2734463276836158,
+      "revenue_growth_qoq": 0.12068898023096497,
+      "prev_net_profit_growth_qoq": 85.04166666666667,
+      "prev_revenue_growth_qoq": 0.08927398790690534,
+      "roe": 0.0778277249476004,
+      "net_debt_ebitda": -1.4724899353421983,
+      "fundamental_score": 2
+    },
+    "sector": {
+      "sector_group": "Petroleum-Refining",
+      "benchmark_type": "xu100_fallback",
+      "lag_score_5d": -0.01658922685928843,
+      "lag_score_10d": -0.01819246031144861,
+      "lag_score_20d": -0.0749379593812648,
+      "intra_group_rank": 1,
+      "potential_catchup_flag": true
+    },
+    "events": {
+      "bearish_kama_cross": {
+        "n": 60,
+        "bounce_rate_5d": 0.48333333333333334,
+        "avg_fwd_5d": 0.004129178207482132,
+        "days_since_last": 16
+      },
+      "bullish_kama_cross": {
+        "n": 59,
+        "bounce_rate_5d": 0.5254237288135594,
+        "avg_fwd_5d": 0.0061802847573859485,
+        "days_since_last": 19
+      },
+      "cloud_breakdown": {
+        "n": 39,
+        "bounce_rate_5d": 0.48717948717948717,
+        "avg_fwd_5d": 0.015817131950711445,
+        "days_since_last": 75
+      },
+      "cloud_breakout": {
+        "n": 35,
+        "bounce_rate_5d": 0.5714285714285714,
+        "avg_fwd_5d": 0.0024245338246008607,
+        "days_since_last": 70
+      },
+      "cloud_entry": {
+        "n": 29,
+        "bounce_rate_5d": 0.4827586206896552,
+        "avg_fwd_5d": 0.010386554443006655,
+        "days_since_last": 72
+      },
+      "cloud_rejection": {
+        "n": 36,
+        "bounce_rate_5d": 0.4166666666666667,
+        "avg_fwd_5d": -0.0009229781007885173,
+        "days_since_last": 36
+      },
+      "lower_band_touch": {
+        "n": 27,
+        "bounce_rate_5d": 0.5555555555555556,
+        "avg_fwd_5d": 0.021619396008719517,
+        "days_since_last": 12
+      },
+      "middle_band_test": {
+        "n": 119,
+        "bounce_rate_5d": 0.48739495798319327,
+        "avg_fwd_5d": 0.004071989575790198,
+        "days_since_last": 19
+      },
+      "rsi_peak": {
+        "n": 70,
+        "bounce_rate_5d": 0.21739130434782608,
+        "avg_fwd_5d": -0.023089370464214266,
+        "days_since_last": 6
+      },
+      "rsi_trough": {
+        "n": 74,
+        "bounce_rate_5d": 0.8108108108108109,
+        "avg_fwd_5d": 0.04777901508050245,
+        "days_since_last": 12
+      },
+      "supertrend_flip_bearish": {
+        "n": 12,
+        "bounce_rate_5d": 0.6666666666666666,
+        "avg_fwd_5d": 0.028516500488678886,
+        "days_since_last": 15
+      },
+      "supertrend_flip_bullish": {
+        "n": 12,
+        "bounce_rate_5d": 0.6666666666666666,
+        "avg_fwd_5d": 0.005125012582738968,
+        "days_since_last": 68
+      },
+      "upper_band_touch": {
+        "n": 50,
+        "bounce_rate_5d": 0.64,
+        "avg_fwd_5d": 0.013887823667995234,
+        "days_since_last": 103
+      }
+    },
+    "macro": {
+      "usdtry": 42.95198059082031,
+      "eurtry": 50.6006088256836,
+      "tcmb_rate": 38.0,
+      "tufe_yoy": 30.89,
+      "fed_rate": 3.75,
+      "usdtry_30d_ago": 42.46950149536133,
+      "as_of": "2025-12-31"
+    }
+  },
+  "committed_evidence": [
+    {
+      "id": "E1",
+      "statement": "Technical score: 2/5",
+      "source_tool": "calculate_technical_score",
+      "value": 2
+    },
+    {
+      "id": "E2",
+      "statement": "Stock is 7.5 pp behind XU100 over the last 20 trading days (laggard)",
+      "source_tool": "rank_universe_by_sector",
+      "value": -0.0749379593812648
+    },
+    {
+      "id": "E3",
+      "statement": "Net profit improved by 27.3% QoQ",
+      "source_tool": "calculate_quarterly_changes",
+      "value": 0.2734463276836158
+    },
+    {
+      "id": "E4",
+      "statement": "Revenue grew by 12.1% QoQ",
+      "source_tool": "calculate_quarterly_changes",
+      "value": 0.12068898023096497
+    },
+    {
+      "id": "E5",
+      "statement": "Net Debt/EBITDA (TTM): -1.47x",
+      "source_tool": "calculate_derived_ratios",
+      "value": -1.4724899353421983
+    },
+    {
+      "id": "E6",
+      "statement": "Lower Band Touch: 55.6% bounce rate within 5 days (n=27)",
+      "source_tool": "build_event_log",
+      "value": {
+        "bounce_rate_5d": 0.5555555555555556,
+        "n": 27
+      }
+    },
+    {
+      "id": "E7",
+      "statement": "Rsi Trough: 81.1% bounce rate within 5 days (n=74)",
+      "source_tool": "build_event_log",
+      "value": {
+        "bounce_rate_5d": 0.8108108108108109,
+        "n": 74
+      }
+    },
+    {
+      "id": "E8",
+      "statement": "Macro regime: TCMB rate 38.00%; TRY weakened 1.1% vs. USD over last 30 days; TÜİK CPI YoY ≈ 30.9%",
+      "source_tool": "build_daily_macro_series",
+      "value": {
+        "tcmb_rate": 38.0,
+        "usdtry": 42.95198059082031,
+        "try_30d_chg_%": 1.1360601807668558,
+        "tufe_yoy": 30.89
+      }
+    }
+  ],
+  "gate_result": {
+    "status": "PASS_WITH_WARNINGS",
+    "warnings": [
+      "'TUPRS' has no sector peers — benchmark falls back to XU100. Sector-relative analysis will be less informative."
+    ],
+    "blocks": []
+  },
+  "action_result": {
+    "action": "POTENTIAL_CATCH_UP_CANDIDATE",
+    "reasoning": [
+      "[soft-warning] 'TUPRS' has no sector peers — benchmark falls back to XU100. Sector-relative analysis will be less informative.",
+      "Catchup flag set; stock is lagging xu100_fallback by 7.5 pp over 20d. (see E2)"
+    ],
+    "timestamp": "2026-11-13T05:38:03+00:00"
+  },
+  "human_review": {
+    "result": "ACCEPT",
+    "reason": "Automated harness experiment — no human reviewer present.",
+    "reviewer_note": "",
+    "reviewed_at": "2026-11-13T05:38:03+00:00"
+  }
+}

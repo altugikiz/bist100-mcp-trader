@@ -1,0 +1,341 @@
+{
+  "session_id": "395f3e4c-ece0-4466-9fc0-af2249c729ce",
+  "ticker": "THYAO",
+  "sector_group": "Transportation-Airlines",
+  "analysis_timestamp": "2026-11-13T05:38:04+00:00",
+  "market_data_period": {
+    "start": "2023-01-02",
+    "end": "2025-12-31"
+  },
+  "data_versions": {
+    "price_data": "as of 2025-12-31",
+    "fundamentals": "2025Q3"
+  },
+  "tool_calls": [
+    {
+      "timestamp": "2026-11-13T05:38:04+00:00",
+      "state": "SELECT_UNIVERSE",
+      "tool_name": "has_sector_peers",
+      "input_summary": "ticker=THYAO",
+      "output_summary": "in_universe=True"
+    },
+    {
+      "timestamp": "2026-11-13T05:38:04+00:00",
+      "state": "LOAD_MARKET_DATA",
+      "tool_name": "get_stock_history",
+      "input_summary": "ticker=THYAO.IS  rows=749",
+      "output_summary": "start=2023-01-02  end=2025-12-31"
+    },
+    {
+      "timestamp": "2026-11-13T05:38:04+00:00",
+      "state": "CHECK_DATA_QUALITY",
+      "tool_name": "check_data_quality",
+      "input_summary": "ticker=THYAO",
+      "output_summary": "Close_NaN=0.0%  rows=749"
+    },
+    {
+      "timestamp": "2026-11-13T05:38:04+00:00",
+      "state": "CALCULATE_TECHNICALS",
+      "tool_name": "calculate_technical_score",
+      "input_summary": "ticker=THYAO as_of=2025-12-31",
+      "output_summary": "score=2/5  KAMA=flat"
+    },
+    {
+      "timestamp": "2026-11-13T05:38:04+00:00",
+      "state": "RUN_SECTOR_RELATIVE_ANALYSIS",
+      "tool_name": "rank_universe_by_sector",
+      "input_summary": "date=2025-12-31",
+      "output_summary": "lag_20d=0.024  catchup=False"
+    },
+    {
+      "timestamp": "2026-11-13T05:38:04+00:00",
+      "state": "RUN_PATTERN_AND_REVERSAL_ANALYSIS",
+      "tool_name": "build_event_log",
+      "input_summary": "ticker=THYAO",
+      "output_summary": "event_types=13"
+    },
+    {
+      "timestamp": "2026-11-13T05:38:04+00:00",
+      "state": "LOAD_FUNDAMENTALS",
+      "tool_name": "calculate_fundamental_score",
+      "input_summary": "ticker=THYAO safe_quarter=2025Q3",
+      "output_summary": "score=1/5"
+    },
+    {
+      "timestamp": "2026-11-13T05:38:04+00:00",
+      "state": "LOAD_MACRO_CONTEXT",
+      "tool_name": "build_daily_macro_series",
+      "input_summary": "end=2025-12-31",
+      "output_summary": "tcmb=38.0%  usdtry=42.95"
+    },
+    {
+      "timestamp": "2026-11-13T05:38:04+00:00",
+      "state": "BUILD_EVIDENCE",
+      "tool_name": "build_evidence_bundle",
+      "input_summary": "ticker=THYAO",
+      "output_summary": "committed=7  gate=PASS"
+    },
+    {
+      "timestamp": "2026-11-13T05:38:04+00:00",
+      "state": "GENERATE_EXPLANATION",
+      "tool_name": "generate_explanation",
+      "input_summary": "ticker=THYAO",
+      "output_summary": "action=TECHNICAL_REVERSAL_CANDIDATE"
+    }
+  ],
+  "state_history": [
+    {
+      "timestamp": "2026-11-13T05:38:04+00:00",
+      "state": "START"
+    },
+    {
+      "timestamp": "2026-11-13T05:38:04+00:00",
+      "state": "SELECT_UNIVERSE"
+    },
+    {
+      "timestamp": "2026-11-13T05:38:04+00:00",
+      "state": "LOAD_MARKET_DATA"
+    },
+    {
+      "timestamp": "2026-11-13T05:38:04+00:00",
+      "state": "CHECK_DATA_QUALITY"
+    },
+    {
+      "timestamp": "2026-11-13T05:38:04+00:00",
+      "state": "CALCULATE_TECHNICALS"
+    },
+    {
+      "timestamp": "2026-11-13T05:38:04+00:00",
+      "state": "RUN_SECTOR_RELATIVE_ANALYSIS"
+    },
+    {
+      "timestamp": "2026-11-13T05:38:04+00:00",
+      "state": "RUN_PATTERN_AND_REVERSAL_ANALYSIS"
+    },
+    {
+      "timestamp": "2026-11-13T05:38:04+00:00",
+      "state": "LOAD_FUNDAMENTALS"
+    },
+    {
+      "timestamp": "2026-11-13T05:38:04+00:00",
+      "state": "LOAD_MACRO_CONTEXT"
+    },
+    {
+      "timestamp": "2026-11-13T05:38:04+00:00",
+      "state": "LOAD_NEWS_AND_SPEECH_CONTEXT"
+    },
+    {
+      "timestamp": "2026-11-13T05:38:04+00:00",
+      "state": "BUILD_EVIDENCE"
+    },
+    {
+      "timestamp": "2026-11-13T05:38:04+00:00",
+      "state": "PREVIEW_STRATEGIES"
+    },
+    {
+      "timestamp": "2026-11-13T05:38:04+00:00",
+      "state": "RUN_BACKTEST"
+    },
+    {
+      "timestamp": "2026-11-13T05:38:04+00:00",
+      "state": "RISK_GATE"
+    },
+    {
+      "timestamp": "2026-11-13T05:38:04+00:00",
+      "state": "GENERATE_EXPLANATION"
+    },
+    {
+      "timestamp": "2026-11-13T05:38:04+00:00",
+      "state": "HUMAN_REVIEW"
+    }
+  ],
+  "observed_context": {
+    "technical": {
+      "technical_score": 2,
+      "KAMA_Slope": "flat",
+      "Supertrend_Direction": "bearish",
+      "Ichimoku_State": null,
+      "RSI14": 42.62102311789527
+    },
+    "fundamental": {
+      "net_profit_growth_qoq": 1.0890387984048302,
+      "revenue_growth_qoq": 0.22248015770088705,
+      "prev_net_profit_growth_qoq": 15.758525852585258,
+      "prev_revenue_growth_qoq": 0.30904522613065327,
+      "roe": 0.1250990889151941,
+      "net_debt_ebitda": 3.197642994783099,
+      "fundamental_score": 1
+    },
+    "sector": {
+      "sector_group": "Transportation-Airlines",
+      "benchmark_type": "sector",
+      "lag_score_5d": 0.060181829787378294,
+      "lag_score_10d": 0.0631408219686942,
+      "lag_score_20d": 0.024170234345335606,
+      "intra_group_rank": 2,
+      "potential_catchup_flag": false
+    },
+    "events": {
+      "bearish_kama_cross": {
+        "n": 63,
+        "bounce_rate_5d": 0.42857142857142855,
+        "avg_fwd_5d": -0.00036549554137231473,
+        "days_since_last": 9
+      },
+      "bullish_kama_cross": {
+        "n": 62,
+        "bounce_rate_5d": 0.4032258064516129,
+        "avg_fwd_5d": 0.00024223650006720613,
+        "days_since_last": 12
+      },
+      "cloud_breakdown": {
+        "n": 37,
+        "bounce_rate_5d": 0.5405405405405406,
+        "avg_fwd_5d": 0.006209034770989497,
+        "days_since_last": 79
+      },
+      "cloud_breakout": {
+        "n": 39,
+        "bounce_rate_5d": 0.3076923076923077,
+        "avg_fwd_5d": -0.006675785833731828,
+        "days_since_last": 100
+      },
+      "cloud_entry": {
+        "n": 23,
+        "bounce_rate_5d": 0.5217391304347826,
+        "avg_fwd_5d": 0.0029189331371138006,
+        "days_since_last": 82
+      },
+      "cloud_rejection": {
+        "n": 39,
+        "bounce_rate_5d": 0.5128205128205128,
+        "avg_fwd_5d": -0.00227428505820094,
+        "days_since_last": 96
+      },
+      "lower_band_touch": {
+        "n": 39,
+        "bounce_rate_5d": 0.6578947368421053,
+        "avg_fwd_5d": 0.020809696329813113,
+        "days_since_last": 2
+      },
+      "middle_band_test": {
+        "n": 125,
+        "bounce_rate_5d": 0.43089430894308944,
+        "avg_fwd_5d": -0.0027247869177192603,
+        "days_since_last": 0
+      },
+      "rsi_peak": {
+        "n": 73,
+        "bounce_rate_5d": 0.2191780821917808,
+        "avg_fwd_5d": -0.02299518293340964,
+        "days_since_last": 12
+      },
+      "rsi_trough": {
+        "n": 75,
+        "bounce_rate_5d": 0.8133333333333334,
+        "avg_fwd_5d": 0.03945105316433471,
+        "days_since_last": 20
+      },
+      "supertrend_flip_bearish": {
+        "n": 13,
+        "bounce_rate_5d": 0.7692307692307693,
+        "avg_fwd_5d": 0.034812687052988706,
+        "days_since_last": 114
+      },
+      "supertrend_flip_bullish": {
+        "n": 13,
+        "bounce_rate_5d": 0.5384615384615384,
+        "avg_fwd_5d": 0.002867133282419033,
+        "days_since_last": 190
+      },
+      "upper_band_touch": {
+        "n": 40,
+        "bounce_rate_5d": 0.775,
+        "avg_fwd_5d": 0.030833875438492187,
+        "days_since_last": 140
+      }
+    },
+    "macro": {
+      "usdtry": 42.95198059082031,
+      "eurtry": 50.6006088256836,
+      "tcmb_rate": 38.0,
+      "tufe_yoy": 30.89,
+      "fed_rate": 3.75,
+      "usdtry_30d_ago": 42.46950149536133,
+      "as_of": "2025-12-31"
+    }
+  },
+  "committed_evidence": [
+    {
+      "id": "E1",
+      "statement": "Technical score: 2/5",
+      "source_tool": "calculate_technical_score",
+      "value": 2
+    },
+    {
+      "id": "E2",
+      "statement": "Net profit improved by 108.9% QoQ",
+      "source_tool": "calculate_quarterly_changes",
+      "value": 1.0890387984048302
+    },
+    {
+      "id": "E3",
+      "statement": "Revenue grew by 22.2% QoQ",
+      "source_tool": "calculate_quarterly_changes",
+      "value": 0.22248015770088705
+    },
+    {
+      "id": "E4",
+      "statement": "Net Debt/EBITDA (TTM): 3.20x",
+      "source_tool": "calculate_derived_ratios",
+      "value": 3.197642994783099
+    },
+    {
+      "id": "E5",
+      "statement": "Lower Band Touch: 65.8% bounce rate within 5 days (n=39)",
+      "source_tool": "build_event_log",
+      "value": {
+        "bounce_rate_5d": 0.6578947368421053,
+        "n": 39
+      }
+    },
+    {
+      "id": "E6",
+      "statement": "Rsi Trough: 81.3% bounce rate within 5 days (n=75)",
+      "source_tool": "build_event_log",
+      "value": {
+        "bounce_rate_5d": 0.8133333333333334,
+        "n": 75
+      }
+    },
+    {
+      "id": "E7",
+      "statement": "Macro regime: TCMB rate 38.00%; TRY weakened 1.1% vs. USD over last 30 days; TÜİK CPI YoY ≈ 30.9%",
+      "source_tool": "build_daily_macro_series",
+      "value": {
+        "tcmb_rate": 38.0,
+        "usdtry": 42.95198059082031,
+        "try_30d_chg_%": 1.1360601807668558,
+        "tufe_yoy": 30.89
+      }
+    }
+  ],
+  "gate_result": {
+    "status": "PASS",
+    "warnings": [],
+    "blocks": []
+  },
+  "action_result": {
+    "action": "TECHNICAL_REVERSAL_CANDIDATE",
+    "reasoning": [
+      "lower_band_touch bounce_rate_5d=65.8% > 60% threshold (E5)."
+    ],
+    "timestamp": "2026-11-13T05:38:04+00:00"
+  },
+  "human_review": {
+    "result": "ACCEPT",
+    "reason": "Automated harness experiment — no human reviewer present.",
+    "reviewer_note": "",
+    "reviewed_at": "2026-11-13T05:38:04+00:00"
+  }
+}
