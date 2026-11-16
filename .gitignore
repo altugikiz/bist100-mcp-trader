@@ -3,3 +3,7 @@ __pycache__/
 
 .DS_Store
 **/.DS_Store
+llm/adapters/
+llm/fused/
+llm/Modelfile.ft*
+data/llm_train/

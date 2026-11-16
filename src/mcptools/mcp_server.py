@@ -616,6 +616,7 @@ def start_analysis_session(ticker: str) -> dict:
         "ticker":        ticker,
         "price_rows":    len(df),
         "price_nan_pct": round(nan_pct, 2),
+        "price_end":     str(df.index[-1].date()),
     })
 
 

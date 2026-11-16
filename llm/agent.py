@@ -13,6 +13,7 @@ Usage:
 import argparse
 import asyncio
 import json
+import re
 import os
 import sys
 import urllib.request
@@ -37,6 +38,21 @@ def load_server():
 HUMAN_ONLY_TOOLS = {"submit_human_review"}
 
 
+def _short(text: str, limit: int = 220) -> str:
+    """First paragraph of a docstring, cut to `limit` characters (keeps prompts small)."""
+    first = (text or "").strip().split("\n\n")[0].replace("\n", " ")
+    first = " ".join(first.split())
+    return first if len(first) <= limit else first[: limit - 1].rsplit(" ", 1)[0] + "."
+
+
+def _slim_schema(schema: dict) -> dict:
+    """Drop verbose titles/descriptions from a JSON schema, keep names, types, required."""
+    props = {}
+    for k, v in (schema.get("properties") or {}).items():
+        props[k] = {kk: vv for kk, vv in v.items() if kk in ("type", "default", "enum")}
+    return {"type": "object", "properties": props, "required": schema.get("required", [])}
+
+
 def tool_specs(server, allow_human_review: bool = False, only: set | None = None) -> list[dict]:
     """Convert the MCP tool list into Ollama/OpenAI-style function schemas."""
     tools = asyncio.run(server.mcp.list_tools())
@@ -49,8 +65,8 @@ def tool_specs(server, allow_human_review: bool = False, only: set | None = None
             "type": "function",
             "function": {
                 "name": t.name,
-                "description": (t.description or "").strip(),
-                "parameters": t.inputSchema,
+                "description": _short(t.description),
+                "parameters": _slim_schema(t.inputSchema),
             },
         }
         for t in tools
@@ -70,7 +86,66 @@ def _validate_args(spec: dict, args: dict) -> str | None:
     return None
 
 
+_TOOL_CALL = re.compile(r"<tool_call>\s*(\{.*?\})\s*</tool_call>", re.S)
+_THINK = re.compile(r"^\s*<think>.*?</think>\s*", re.S)
+_TOKENIZER = None
+
+
+def parse_raw_reply(text: str) -> dict:
+    """Turn raw Qwen3 output (optional empty <think> block + <tool_call> JSON blocks) into a chat message."""
+    text = _THINK.sub("", text, count=1)
+    calls = []
+    for blob in _TOOL_CALL.findall(text):
+        try:
+            d = json.loads(blob)
+            calls.append({"type": "function", "function": {"name": d["name"], "arguments": d.get("arguments") or {}}})
+        except (json.JSONDecodeError, KeyError):
+            continue  # malformed call: dropped, counted as no tool call
+    content = _TOOL_CALL.sub("", text).strip()
+    msg = {"role": "assistant", "content": content}
+    if calls:
+        msg["tool_calls"] = calls
+    return msg
+
+
+def _system_prompt() -> str:
+    txt = open(os.path.join(os.path.dirname(__file__), "Modelfile")).read()
+    sp = txt.split('SYSTEM """', 1)[1].rsplit('"""', 1)[0].strip()
+    return sp
+
+
+def _raw_options() -> dict:
+    """Sampling for fine-tuned raw mode. BIST_SAMPLING=qwen uses Qwen3's recommended non-thinking
+    settings; low temperature (0.2) can push a small model into repetition loops."""
+    opts = {"temperature": 0.2, "num_ctx": 12288, "num_predict": 1024}
+    if os.environ.get("BIST_SAMPLING") == "qwen":
+        opts.update({"temperature": 0.7, "top_p": 0.8, "top_k": 20, "repeat_penalty": 1.1})
+    return opts
+
+
+def raw_chat(model: str, messages: list, tools: list, think: bool) -> dict:
+    """Fine-tuned models: render the exact training-time chat format ourselves and parse the reply.
+
+    Ollama's template path drops tool calls that follow Qwen3's empty <think> block,
+    so the prompt is built with the model's own chat template and sent with raw=True.
+    """
+    global _TOKENIZER
+    if _TOKENIZER is None:
+        from transformers import AutoTokenizer
+        _TOKENIZER = AutoTokenizer.from_pretrained(os.environ.get("BIST_TOKENIZER", "mlx-community/Qwen3-4B-4bit"))
+    msgs = [{"role": "system", "content": _system_prompt()}] + messages
+    prompt = _TOKENIZER.apply_chat_template(msgs, tools=tools, tokenize=False, add_generation_prompt=True)
+    body = {"model": model, "prompt": prompt, "raw": True, "stream": False,
+            "options": _raw_options()}
+    req = urllib.request.Request(f"{OLLAMA_URL}/api/generate", data=json.dumps(body).encode(),
+                                 headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=900) as r:
+        return parse_raw_reply(json.loads(r.read())["response"])
+
+
 def ollama_chat(model: str, messages: list, tools: list, think: bool) -> dict:
+    if model.endswith("-ft"):
+        return raw_chat(model, messages, tools, think)
     body = {"model": model, "messages": messages, "tools": tools,
             "stream": False, "think": think,
             "options": {"temperature": 0.2, "num_ctx": 8192}}
@@ -106,10 +181,17 @@ def run_agent(question: str, model: str, think: bool = False,
     trace, stats = [], {"tool_calls": 0, "invalid_calls": 0, "no_tool_text_replies": 0}
 
     nudged = False
+    final_only = False   # set once the analysis is complete or the model starts looping
+    last_sid = None      # most recent real session id returned by start_analysis_session
     for _ in range(MAX_STEPS):
-        msg = chat(model, messages, specs, think)
+        msg = chat(model, messages, [] if final_only else specs, think)
         messages.append(msg)
         calls = msg.get("tool_calls") or []
+        if final_only and calls:
+            # Asked for the final answer but the model called tools again: do not execute them
+            stats["ignored_calls_after_final"] = stats.get("ignored_calls_after_final", 0) + len(calls)
+            return {"answer": (msg.get("content") or "").strip() or "(no final answer produced)",
+                    "trace": trace, "stats": stats}
         if not calls:
             if not (msg.get("content") or "").strip() and trace and not nudged:
                 # Small models sometimes return an empty reply right after tool output
@@ -118,6 +200,7 @@ def run_agent(question: str, model: str, think: bool = False,
                                  "Now write the final answer for the user, using only the tool results above."})
                 continue
             return {"answer": msg.get("content", ""), "trace": trace, "stats": stats}
+        round_failed = False
         for call in calls:
             fn = call["function"]
             name, args = fn["name"], fn.get("arguments") or {}
@@ -133,6 +216,10 @@ def run_agent(question: str, model: str, think: bool = False,
                 if fixed != args["ticker"]:
                     stats["ticker_corrected"] = stats.get("ticker_corrected", 0) + 1
                     args["ticker"] = fixed
+            # Session grounding: a small model may garble a UUID; use the real one from this run.
+            if last_sid and isinstance(args.get("session_id"), str) and args["session_id"] != last_sid:
+                stats["session_corrected"] = stats.get("session_corrected", 0) + 1
+                args["session_id"] = last_sid
             stats["tool_calls"] += 1
             err = None if name in by_name else f"unknown tool '{name}'"
             err = err or _validate_args(by_name[name], args)
@@ -150,10 +237,24 @@ def run_agent(question: str, model: str, think: bool = False,
                 if isinstance(result, list):
                     result = [getattr(c, "text", str(c)) for c in result]
             out = json.dumps(result, default=str)
+            if name == "start_analysis_session" and not err:
+                try:
+                    last_sid = json.loads(result[0])["session_id"]
+                except (KeyError, IndexError, TypeError, json.JSONDecodeError):
+                    pass
+            round_failed = round_failed or bool(err) or '\\"error\\"' in out or '"error"' in out[:40]
             trace.append({"tool": name, "args": args, "output": out})
             if verbose:
                 print(f"[tool] {name}({args}) -> {out[:120]}...")
             messages.append({"role": "tool", "tool_name": name, "content": out})
+        analysis_done = any(t["tool"] == "get_recommended_action" and "action" in t["output"] and "error" not in t["output"][:40]
+                            for t in trace)
+        if not final_only and ((analysis_done and round_failed) or len(trace) >= 8):
+            # The harness has already produced its answer (or the model is looping): ask for the write-up
+            final_only = True
+            stats["forced_final"] = 1
+            messages.append({"role": "user", "content":
+                             "Stop calling tools. Write the final answer for the user now, using only the tool results above."})
     return {"answer": "(stopped: step limit reached)", "trace": trace, "stats": stats}
 
 

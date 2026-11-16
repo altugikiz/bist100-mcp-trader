@@ -32,6 +32,7 @@ bist100-mcp-trader/
 │   └── decision_log/                 # Per-session JSON audit logs
 ├── llm/
 │   ├── Modelfile                     # bist-analyst: Qwen3 8B + system prompt + parameters
+│   ├── make_dataset.py / filter_dataset.py / finetune.sh   # LoRA fine-tuning experiment (see report 13.2)
 │   ├── agent.py                      # Ollama tool-calling agent loop over the MCP tools
 │   ├── eval_questions.json           # 20 evaluation questions
 │   ├── run_eval.py                   # Tool-use / invalid-call / unsupported-number metrics
@@ -159,6 +160,10 @@ python llm/run_eval.py --model bist-analyst
 # Real A/B runs (A: base model without tools, B: bist-analyst with tools)
 python llm/run_ab.py
 ```
+
+### Fine-tuning experiment (negative result)
+
+`llm/make_dataset.py` builds a training set from real MCP tool transcripts (evaluation tickers held out), `llm/filter_dataset.py` removes samples that would truncate to zero trainable tokens (the cause of the NaN loss), and `llm/finetune.sh` trains a LoRA adapter on Qwen3 4B with MLX and exports it to Ollama as `bist-analyst-ft`. On the 20-question evaluation it did not beat the prompt-engineered 8B model (tool-use 0.25–0.90 vs 1.00; up to 48% vs 1.3% unsupported numbers), so `bist-analyst` (8B) is the project's model. Details are in Section 13.2 of the report.
 
 The model never sees `submit_human_review`; the final verdict always belongs to a human (`--allow-human-review` exposes it only when you supply the verdict yourself). Price and macro data end on 2025-12-31 (fundamentals extend to 2026 Q3); every analysis states its data end date.
 
