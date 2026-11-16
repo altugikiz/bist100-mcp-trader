@@ -15,6 +15,20 @@ from config import SYMBOL, START_DATE, END_DATE
 from data.universe import UNIVERSE
 
 
+_LOCAL_CACHE = os.path.join(os.path.dirname(__file__), "..", "..", "data", "universe_cache")
+
+
+def _read_local_cache(ticker: str, start: str, end: str):
+    """Return OHLCV rows from data/universe_cache/<SYMBOL>.csv, or None when no cached file exists."""
+    sym = ticker.upper().replace(".IS", "")
+    path = os.path.join(_LOCAL_CACHE, f"{sym}.csv")
+    if not os.path.isfile(path):
+        return None
+    df = pd.read_csv(path, index_col="Date", parse_dates=True)
+    df = df.loc[(df.index >= pd.Timestamp(start)) & (df.index < pd.Timestamp(end))]
+    return df if not df.empty else None
+
+
 def fetch_ohlcv(ticker: str, start: str, end: str) -> pd.DataFrame:
     """
     Download daily OHLCV data for a given ticker from Yahoo Finance.
@@ -27,6 +41,11 @@ def fetch_ohlcv(ticker: str, start: str, end: str) -> pd.DataFrame:
     Returns:
         DataFrame with columns [Open, High, Low, Close, Volume] indexed by Date.
     """
+    # Offline-first: the project must run without internet, so a cached CSV wins over Yahoo Finance.
+    cached = _read_local_cache(ticker, start, end)
+    if cached is not None:
+        return cached
+
     raw = yf.download(ticker, start=start, end=end, auto_adjust=True, progress=False)
 
     # Flatten MultiIndex columns if present (e.g. ('Close', 'ASELS.IS') -> 'Close')

@@ -7,3 +7,5 @@ llm/adapters/
 llm/fused/
 llm/Modelfile.ft*
 data/llm_train/
+llm/adapters*/
+llm/fused*/

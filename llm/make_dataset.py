@@ -369,6 +369,160 @@ def ex_macro_rng(y, m, q, lang):
     return c.answer(txt)
 
 
+# ---------------- extra generators 2: legacy analytics tools, unknown inputs, backtest ----------------
+import re
+
+NOT_IN_UNIVERSE = ["GARAN", "SISE", "ASTOR", "SAHOL", "HEKTS", "KOZAL", "VAKBN", "YKBNK", "PGSUS1", "BRSAN", "XYZAB", "QWERT"]
+Q_IND = [("{t} için teknik göstergeler (SMA, RSI, MACD) ne diyor?", "tr"), ("{t} hissesinde RSI ve MACD durumu nedir?", "tr"),
+         ("What do the SMA, RSI and MACD indicators say for {t}?", "en"), ("Is {t} overbought or oversold by RSI?", "en")]
+Q_HIST = [("{t} hissesinin son 5 günlük fiyat hareketi nasıl?", "tr"), ("Show the last 5 trading days of {t}.", "en"),
+          ("{t} son kapanış fiyatı nedir?", "tr"), ("What was the latest close for {t}?", "en")]
+Q_SR = [("{t} için destek ve direnç seviyeleri nerede?", "tr"), ("Where are the nearest support and resistance levels for {t}?", "en")]
+Q_FS = [("ASELS için {p} dönemi temel analiz skoru nedir?", "tr"), ("What is the ASELS fundamental score for {p}?", "en"),
+        ("{p} döneminde ASELS temel kalite kriterlerinden hangilerini geçiyor?", "tr")]
+Q_BT = [("ASELS stratejisi 2024-2025'te nasıl performans gösterdi?", "tr", {}), ("How did the ASELS strategy perform in the backtest?", "en", {}),
+        ("Backtest özeti: Sharpe oranı ve maksimum düşüş nedir?", "tr", {}),
+        ("Run the backtest with 60% technical and 40% fundamental weight.", "en", {"tech_weight": 0.6, "fund_weight": 0.4}),
+        ("Teknik ağırlığı 0.4, temel ağırlığı 0.6 yaparak backtest çalıştır.", "tr", {"tech_weight": 0.4, "fund_weight": 0.6}),
+        ("Backtest with technical weight 0.7 and fundamental weight 0.3: how does it compare?", "en", {"tech_weight": 0.7, "fund_weight": 0.3})]
+Q_UNK = [("{t} hissesini analiz et.", "tr"), ("{t} için tam analiz yapar mısın?", "tr"), ("Run a full analysis for {t}.", "en"), ("Analyse {t} with the harness.", "en")]
+Q_BADGRP = [("Crypto grubunda en geride kalan hisseler hangileri?", "tr", "Crypto"), ("Which stocks in the Aviation group lag their sector most?", "en", "Aviation"),
+            ("Rank the Gaming group by sector-relative strength.", "en", "Gaming")]
+
+
+def _find(d, key):
+    """Depth-first search for a key in nested dicts (None when absent)."""
+    if isinstance(d, dict):
+        if key in d:
+            return d[key]
+        for v in d.values():
+            r = _find(v, key)
+            if r is not None:
+                return r
+    return None
+
+
+def ex_ind(t, q, lang):
+    c = Chat(q.format(t=t))
+    r = c.tool("calculate_indicators", {"symbol": f"{t}.IS"})
+    if "error" in r:
+        return None
+    sg = r["signals"]
+    if lang == "tr":
+        txt = (f"{t}.IS, {r['as_of']} itibarıyla: kapanış {r['close']}, SMA20 {r['SMA20']}, SMA50 {r['SMA50']}, RSI14 {r['RSI14']}, "
+               f"MACD {r['MACD']} (sinyal {r['MACD_Signal']}, histogram {r['MACD_Hist']}). Trend: {sg['trend']}, fiyat SMA20'ye göre {sg['price_vs_sma20']}, "
+               f"RSI bölgesi: {sg['rsi_zone']}, MACD kesişimi: {sg['macd_crossover']}.\n\nBunlar tarihsel göstergelerdir, tahmin değildir. {DISC['tr']}")
+    else:
+        txt = (f"{t}.IS as of {r['as_of']}: close {r['close']}, SMA20 {r['SMA20']}, SMA50 {r['SMA50']}, RSI14 {r['RSI14']}, "
+               f"MACD {r['MACD']} (signal {r['MACD_Signal']}, histogram {r['MACD_Hist']}). Trend: {sg['trend']}, price is {sg['price_vs_sma20']} SMA20, "
+               f"RSI zone: {sg['rsi_zone']}, MACD crossover: {sg['macd_crossover']}.\n\nThese are historical indicators, not forecasts. {DISC['en']}")
+    return c.answer(txt)
+
+
+def ex_hist(t, q, lang):
+    c = Chat(q.format(t=t))
+    r = c.tool("get_stock_history", {"symbol": f"{t}.IS", "last_n": 5})
+    rows = r.get("rows") or []
+    if not rows:
+        return None
+    lines = "\n".join(f"- {x['date']}: açılış {x['open']}, yüksek {x['high']}, düşük {x['low']}, kapanış {x['close']}, hacim {x['volume']}" if lang == "tr" else
+                      f"- {x['date']}: open {x['open']}, high {x['high']}, low {x['low']}, close {x['close']}, volume {x['volume']}" for x in rows)
+    last = rows[-1]
+    if lang == "tr":
+        txt = f"{t}.IS için son {len(rows)} işlem günü:\n{lines}\n\nSon kapanış {last['close']} ({last['date']}). Fiyat verisi bu tarihte bitiyor.\n\n{DISC['tr']}"
+    else:
+        txt = f"Last {len(rows)} trading days for {t}.IS:\n{lines}\n\nLatest close {last['close']} ({last['date']}). Price data ends on this date.\n\n{DISC['en']}"
+    return c.answer(txt)
+
+
+def ex_sr(t, q, lang):
+    c = Chat(q.format(t=t))
+    r = c.tool("find_support_resistance_levels", {"symbol": f"{t}.IS"})
+    if "error" in r:
+        return None
+    body = json.dumps({k: v for k, v in r.items() if k not in ("symbol",)}, ensure_ascii=False, default=str)[:700]
+    if lang == "tr":
+        txt = f"{t}.IS için araç sonucu (en yakın destek/direnç seviyeleri):\n{body}\n\nBu seviyeler geçmiş pivot noktalarından hesaplanır; fiyatın oradan döneceğini garanti etmez. {DISC['tr']}"
+    else:
+        txt = f"Tool result for {t}.IS (nearest support and resistance levels):\n{body}\n\nThese levels come from past pivot points and do not guarantee a reversal. {DISC['en']}"
+    return c.answer(txt)
+
+
+def ex_fscore(p, q, lang):
+    c = Chat(q.format(p=p))
+    r = c.tool("get_fundamental_score", {"period": p})
+    if "error" in r or "fundamental_score" not in r:
+        return None
+    crit = {k: v for k, v in r.items() if isinstance(v, bool)}
+    passed = [k for k, v in crit.items() if v]
+    failed = [k for k, v in crit.items() if not v]
+    if lang == "tr":
+        txt = (f"ASELS {p} temel analiz skoru: {r['fundamental_score']}/5. Geçilen kriterler: {', '.join(passed) or 'yok'}. "
+               f"Geçilemeyen kriterler: {', '.join(failed) or 'yok'}.\n\n{DISC['tr']}")
+    else:
+        txt = (f"ASELS fundamental score for {p}: {r['fundamental_score']}/5. Criteria passed: {', '.join(passed) or 'none'}. "
+               f"Criteria not passed: {', '.join(failed) or 'none'}.\n\n{DISC['en']}")
+    return c.answer(txt)
+
+
+def ex_backtest(q, lang, args):
+    c = Chat(q)
+    r = c.tool("run_backtest_summary", dict(args))
+    if "error" in r:
+        return None
+    keys = ["cumulative_return", "sharpe_ratio", "max_drawdown", "win_rate", "days_invested"]
+    vals = {k: _find(r, k) for k in keys}
+    vals = {k: (round(v, 4) if isinstance(v, float) else v) for k, v in vals.items() if v is not None}
+    if not vals:
+        return None
+    lines = "\n".join(f"- {k}: {v}" for k, v in vals.items())
+    if lang == "tr":
+        txt = (f"ASELS stratejisi backtest özeti (araç çıktısı, parametreler: {args or 'varsayılan'}):\n{lines}\n\n"
+               f"Backtest geçmiş veriye dayanır, gelecekteki kazancı garanti etmez. {DISC['tr']}")
+    else:
+        txt = (f"ASELS strategy backtest summary (tool output, parameters: {args or 'default'}):\n{lines}\n\n"
+               f"A backtest only describes the past and does not guarantee future returns. {DISC['en']}")
+    return c.answer(txt)
+
+
+def ex_unknown_ticker(t, q, lang):
+    """Ticker outside the 30-stock universe: the tool errors, the model must not retry or invent."""
+    c = Chat(q.format(t=t))
+    args = {"ticker": t}
+    try:
+        call("start_analysis_session", args)
+        return None  # ticker unexpectedly valid
+    except Exception as exc:
+        err = {"error": f"tool failed: {str(exc)[:200]}"}
+    c.msgs.append({"role": "assistant", "content": "", "tool_calls": [{"type": "function", "function": {"name": "start_analysis_session", "arguments": args}}]})
+    c.msgs.append({"role": "tool", "name": "start_analysis_session", "content": json.dumps(err)})
+    m = re.search(r"Did you mean[^.]*", err["error"])
+    hint_tr = f" Araç şunu önerdi: {m.group(0)}." if m else ""
+    hint_en = f" The tool suggested: {m.group(0)}." if m else ""
+    if lang == "tr":
+        txt = (f"{t} çalışma evrenindeki 30 BIST hissesi arasında değil, bu yüzden analiz başlatılamadı.{hint_tr} Elimde kanıt olmadığı için sonuç uydurmuyorum. "
+               f"Harness etiketi: **ANALYSIS_UNSAFE**. Geçerli bir ticker verirsen analizi çalıştırabilirim.\n\n{DISC['tr']}")
+    else:
+        txt = (f"{t} is not among the 30 BIST stocks in the study universe, so the analysis could not start.{hint_en} I have no evidence, so I will not invent a result. "
+               f"Harness label: **ANALYSIS_UNSAFE**. Give me a valid ticker and I can run the analysis.\n\n{DISC['en']}")
+    return c.answer(txt)
+
+
+def ex_bad_group(q, lang, g):
+    c = Chat(q)
+    r = c.tool("rank_sector_relative_strength", {"sector_group": g})
+    groups = r.get("valid_sector_groups")
+    if not groups:
+        return None
+    if lang == "tr":
+        txt = (f"'{g}' geçerli bir sektör grubu değil, bu yüzden sıralama yapılamadı. Geçerli gruplar: {', '.join(groups)}. "
+               f"Kanıt yetersiz, sonuç uydurmuyorum: **INVESTIGATE**. Bir grup seçersen sıralamayı çalıştırırım.\n\n{DISC['tr']}")
+    else:
+        txt = (f"'{g}' is not a valid sector group, so no ranking could be produced. Valid groups: {', '.join(groups)}. "
+               f"Evidence is insufficient and I will not invent a result: **INVESTIGATE**. Pick a group and I will run the ranking.\n\n{DISC['en']}")
+    return c.answer(txt)
+
+
 def safe(fn, *a):
     try:
         return fn(*a)
@@ -414,6 +568,26 @@ if __name__ == "__main__":
     for t in ("TRALT", "ISMEN", "EKGYO", "TURSG"):
         for q, lang in Q_DQ * 2:
             data.append(safe(ex_dq, t, q.format(t=t), lang))
+    # ---- extra 2: legacy analytics tools, backtest, fundamentals score, unknown inputs ----
+    for t in TICKERS:
+        for q, lang in random.sample(Q_IND, 1):
+            data.append(safe(ex_ind, t, q, lang))
+        for q, lang in random.sample(Q_HIST, 1):
+            data.append(safe(ex_hist, t, q, lang))
+    for t in random.sample(TICKERS, 8):
+        q, lang = random.choice(Q_SR)
+        data.append(safe(ex_sr, t, q, lang))
+    for p in ["2024Q1", "2024Q2", "2024Q3", "2024Q4", "2025Q1", "2025Q2", "2025Q3", "2025Q4"]:
+        for q, lang in random.sample(Q_FS, 2):
+            data.append(safe(ex_fscore, p, q, lang))
+    for _ in range(2):
+        for q, lang, args in Q_BT:
+            data.append(safe(ex_backtest, q, lang, args))
+    for t in NOT_IN_UNIVERSE:
+        for q, lang in random.sample(Q_UNK, 2):
+            data.append(safe(ex_unknown_ticker, t, q, lang))
+    for q, lang, g in Q_BADGRP * 2:
+        data.append(safe(ex_bad_group, q, lang, g))
     for q, a in NO_TOOL * 2:
         data.append({"messages": [{"role": "system", "content": SYSTEM}, {"role": "user", "content": q}, {"role": "assistant", "content": a}], "tools": TOOLS})
     data = [d for d in data if d]

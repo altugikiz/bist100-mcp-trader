@@ -147,7 +147,14 @@ def calculate_performance(
 
 def fetch_benchmark(ticker: str, start: str, end: str) -> pd.Series:
     """Download a benchmark close series and return as a normalised equity curve."""
-    raw = yf.download(ticker, start=start, end=end, auto_adjust=True, progress=False)
+    # Offline-first: use the cached index/stock CSV when present (no internet needed).
+    sym = ticker.upper().replace(".IS", "")
+    cache = os.path.join(os.path.dirname(__file__), "..", "..", "data", "universe_cache", f"{sym}.csv")
+    if os.path.isfile(cache):
+        raw = pd.read_csv(cache, index_col="Date", parse_dates=True)
+        raw = raw.loc[(raw.index >= pd.Timestamp(start)) & (raw.index < pd.Timestamp(end))]
+    else:
+        raw = yf.download(ticker, start=start, end=end, auto_adjust=True, progress=False)
     if isinstance(raw.columns, pd.MultiIndex):
         raw.columns = raw.columns.get_level_values(0)
     close = raw["Close"].dropna()
