@@ -396,7 +396,7 @@ if __name__ == "__main__":
     price_df[["MACD", "MACD_Signal", "MACD_Hist"]] = calculate_macd(price_df)
 
     print("Loading fundamental data …")
-    fund_df = load_fundamentals(_CSV_PATH)
+    fund_df = load_fundamentals("ASELS")
     fund_df = calculate_derived_ratios(fund_df)
     fund_df = calculate_market_multiples(fund_df, CURRENT_PRICE, SHARES_OUTSTANDING)
     fund_df = calculate_yoy_growth(fund_df)

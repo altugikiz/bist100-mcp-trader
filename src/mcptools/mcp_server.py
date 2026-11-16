@@ -289,7 +289,7 @@ def get_fundamental_metrics(period: str = "2025Q4") -> dict:
         Monetary values are in million TRY; margins/returns are decimals;
         multiples are raw ratio values.
     """
-    df = load_fundamentals(_CSV_PATH)
+    df = load_fundamentals("ASELS")
     df = calculate_derived_ratios(df)
     df = calculate_market_multiples(df, CURRENT_PRICE, SHARES_OUTSTANDING)
 
@@ -328,7 +328,7 @@ def get_fundamental_score(period: str = "2025Q4") -> dict:
     Returns:
         dict with 'fundamental_score' (int) and one bool per criterion.
     """
-    df = load_fundamentals(_CSV_PATH)
+    df = load_fundamentals("ASELS")
     df = calculate_derived_ratios(df)
     df = calculate_market_multiples(df, CURRENT_PRICE, SHARES_OUTSTANDING)
     df = calculate_yoy_growth(df)
