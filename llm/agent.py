@@ -250,11 +250,19 @@ def _run_agent(question: str, model: str, think: bool = False,
                     args = {}
             # Argument grounding: a small model may garble a ticker (EREGL -> ERELG).
             # If the user's question names exactly one known ticker, use it verbatim.
-            if isinstance(args.get("ticker"), str):
-                fixed = _ground_ticker(args["ticker"], question)
-                if fixed != args["ticker"]:
-                    stats["ticker_corrected"] = stats.get("ticker_corrected", 0) + 1
-                    args["ticker"] = fixed
+            for key in ("ticker", "symbol"):   # legacy tools name the argument "symbol"
+                if isinstance(args.get(key), str):
+                    fixed = _ground_ticker(args[key], question)
+                    if fixed != args[key]:
+                        stats["ticker_corrected"] = stats.get("ticker_corrected", 0) + 1
+                        args[key] = fixed
+            # Date grounding: when the question names no year, a date range invented by the model is dropped
+            # so the tool's own default window (the full local data) applies.
+            if not re.search(r"\b(19|20)\d{2}\b", question):
+                for key in ("start", "end", "start_date", "end_date"):
+                    if key in args and key in by_name.get(name, {}).get("function", {}).get("parameters", {}).get("properties", {}):
+                        args.pop(key)
+                        stats["dates_dropped"] = stats.get("dates_dropped", 0) + 1
             # Session grounding: a small model may garble a UUID; use the real one from this run.
             if last_sid and isinstance(args.get("session_id"), str) and args["session_id"] != last_sid:
                 stats["session_corrected"] = stats.get("session_corrected", 0) + 1
