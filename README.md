@@ -161,61 +161,21 @@ python llm/run_eval.py --model bist-analyst
 python llm/run_ab.py
 ```
 
-### Fine-tuning experiment (negative result)
+### Fine-tuning experiment (LoRA on Qwen3 4B and 8B)
 
-`llm/make_dataset.py` builds a training set from real MCP tool transcripts (evaluation tickers held out), `llm/filter_dataset.py` removes samples that would truncate to zero trainable tokens (the cause of the NaN loss), and `llm/finetune.sh` trains a LoRA adapter on Qwen3 4B with MLX and exports it to Ollama as `bist-analyst-ft`. On the 20-question evaluation it did not beat the prompt-engineered 8B model (tool-use 0.25–0.90 vs 1.00; up to 48% vs 1.3% unsupported numbers), so `bist-analyst` (8B) is the project's model. Details are in Section 13.2 of the report.
+`llm/make_dataset.py` builds the training set from real MCP tool transcripts (question → tool call → tool output → grounded answer; evaluation tickers held out; refusal cases end in `ANALYSIS_UNSAFE` / `INVESTIGATE`), `llm/filter_dataset.py` drops samples that would truncate to zero trainable tokens (the cause of the NaN loss), and `llm/finetune.sh` trains a LoRA adapter with MLX (final 8B round: 1,535 train / 156 valid samples, rank 8, 8 layers, lr 5e-5, 150 iterations, validation loss 1.685 → 0.251). The fine-tuned 8B runs in-process (`--model mlx:bist8b-ft`, base 4-bit model + adapter, fully local, no export).
 
-The model never sees `submit_human_review`; the final verdict always belongs to a human (`--allow-human-review` exposes it only when you supply the verdict yourself). Price and macro data end on 2025-12-31 (fundamentals extend to 2026 Q3); every analysis states its data end date.
+Base 8B (`bist-analyst`) vs fine-tuned 8B on the unseen 14-question set (`llm/eval_routing.json`) and the 20-question set, raw model text:
 
----
+| Metric | Base (14 / 20) | Fine-tuned (14 / 20) |
+|---|---|---|
+| Tool-selection accuracy | 1.00 / 1.00 | 0.79 / 0.85 |
+| Unsupported conclusion rate | 7.1% / 10.0% | 0% / 0% |
+| Rule violations (raw) | 100% / 85% | 43% / 30% |
+| Numeric hallucination | 9.4% / 1.3% | 11.0% / 1.8% |
+| Latency per question | 12 s / 22 s | 87 s / 138 s |
 
-## MCP Agent Setup (Claude Desktop)
-
-Add the following entry to your `claude_desktop_config.json`:
-
-- **macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
-- **Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
-
-```json
-{
-  "mcpServers": {
-    "bist-analytics": {
-      "command": "<your-path>/venv/bin/python",
-      "args": ["<your-path>/src/mcptools/mcp_server.py"],
-      "cwd": "<your-path>"
-    }
-  }
-}
-```
-
-Replace `<your-path>` with the absolute path to the cloned repository. Restart Claude Desktop after editing the file. Once connected, Claude can call 18 tools:
-
-| Tool | Description |
-|---|---|
-| `get_stock_history` | Recent OHLCV price data |
-| `calculate_indicators` | Latest SMA, RSI, MACD values and signal interpretation |
-| `find_support_resistance_levels` | Nearest pivot-based support and resistance prices |
-| `get_fundamental_metrics` | All financial metrics for a given quarter |
-| `get_fundamental_score` | Fundamental quality score (0–5) with criterion breakdown |
-| `run_backtest_summary` | Strategy performance metrics for a given parameter set |
-| `start_analysis_session` | Open a new harness session for a ticker (START → CHECK_DATA_QUALITY) |
-| `run_full_analysis` | Run the full evidence-bundle pipeline and risk gate for an open session |
-| `get_recommended_action` | Return the 8-label analytical action for an open session |
-| `submit_human_review` | Record ACCEPT / MODIFY / REJECT verdict and close the session |
-| `get_session_replay` | Print the full Section-27 audit replay for a completed session |
-| `rank_sector_relative_strength` | Rank sector-group laggards/leaders versus the benchmark |
-| `test_weekday_pattern` | Weekday return test with 70/30 train/test split and Bonferroni correction |
-| `detect_reversal_events` | Recent reversal events and forward-return statistics |
-| `get_macro_context` | USD/TRY, policy rate, CPI and regime context |
-| `get_news_events` | Curated news events and post-news returns |
-| `check_data_quality` | Risk-gate and data-freshness check for a ticker |
-| `build_evidence_bundle` | Observed vs. committed evidence for a session |
-
----
-
-## Key Results
-
-All results are based on ASELS.IS data from 2024-01-01 to 2025-12-31 using the final configuration: weights 0.50 technical + 0.50 fundamental, BUY threshold 3.0, SELL threshold 1.5.
+`llm/guard.py` (post-answer guard, on by default, `BIST_GUARD=0` disables it) brings rule violations to 0% for both. Recommended demo model: base 8B + guard; the fine-tuned model is the measured comparison. The 4B fine-tune was a negative result. Price data is read offline from `data/universe_cache`; Yahoo Finance is only used with `BIST_ALLOW_NETWORK=1`. Details: report Sections 13.2–13.3.
 
 ### Backtest Performance
 
