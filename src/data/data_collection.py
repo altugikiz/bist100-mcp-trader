@@ -50,6 +50,11 @@ def fetch_ohlcv(ticker: str, start: str, end: str) -> pd.DataFrame:
     if cached is not None:
         return cached
 
+    # Final system runs fully offline: Yahoo Finance is only reachable when explicitly enabled (BIST_ALLOW_NETWORK=1,
+    # used by the cache builder). Unknown tickers therefore fail instantly with a clear error instead of a network call.
+    if os.environ.get("BIST_ALLOW_NETWORK") != "1":
+        raise ValueError(f"No cached price data for {ticker} and network access is disabled (offline mode). "
+                         "The ticker is not in the local study universe.")
     raw = yf.download(ticker, start=start, end=end, auto_adjust=True, progress=False)
 
     # Flatten MultiIndex columns if present (e.g. ('Close', 'ASELS.IS') -> 'Close')
