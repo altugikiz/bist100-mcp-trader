@@ -53,32 +53,66 @@ def hallucinated_numbers(answer: str, tool_outputs: str) -> tuple[int, int]:
     return bad, total
 
 
+# Expected routing for the 20 questions in eval_questions.json: the model must call at least one tool of
+# "must" and may only call tools of "allowed" (so a weekday question answered by a full analysis counts as wrong).
+_FLOW = ["start_analysis_session", "run_full_analysis", "get_recommended_action", "build_evidence_bundle", "check_data_quality"]
+EXPECTED_MAIN = (
+    [{"must_any": ["run_full_analysis"], "allowed": _FLOW}] * 4
+    + [{"must_any": ["run_full_analysis", "check_data_quality"], "allowed": _FLOW}]
+    + [{"must_any": ["rank_sector_relative_strength"], "allowed": ["rank_sector_relative_strength"]}] * 3
+    + [{"must_any": ["test_weekday_pattern"], "allowed": ["test_weekday_pattern"]}] * 3
+    + [{"must_any": ["detect_reversal_events"], "allowed": ["detect_reversal_events"]}] * 3
+    + [{"must_any": ["get_macro_context"], "allowed": ["get_macro_context"]}] * 2
+    + [{"must_any": ["get_news_events"], "allowed": ["get_news_events"]}]
+    + [{"must_any": ["check_data_quality"], "allowed": ["check_data_quality"]}] * 2
+    + [{"must_any": ["run_full_analysis", "get_recommended_action"], "allowed": _FLOW}]
+)
+
+
+def routing_ok(called: list, spec: dict) -> bool:
+    """True when the called tools satisfy the expected routing (see EXPECTED_MAIN)."""
+    must = spec.get("must_any", [])
+    if not must:                      # no-tool question: any tool call is over-calling
+        return not called
+    return any(t in must for t in called) and all(t in spec["allowed"] for t in called)
+
+
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--model", default="bist-analyst")
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--think", action="store_true")
+    ap.add_argument("--routing", action="store_true", help="run the unseen-question routing set (eval_routing.json)")
     a = ap.parse_args()
 
-    qs = json.load(open(os.path.join(os.path.dirname(__file__), "eval_questions.json")))
+    here = os.path.dirname(__file__)
+    if a.routing:
+        specs = json.load(open(os.path.join(here, "eval_routing.json")))
+        qs = [x["q"] for x in specs]
+    else:
+        qs = json.load(open(os.path.join(here, "eval_questions.json")))
+        specs = EXPECTED_MAIN
     if a.limit:
-        qs = qs[: a.limit]
+        qs, specs = qs[: a.limit], specs[: a.limit]
     server = agent.load_server()
     rows = []
-    for q in qs:
+    for q, spec in zip(qs, specs):
         t0 = time.time()
         r = agent.run_agent(q, a.model, think=a.think, server=server, verbose=False)
         lat = time.time() - t0
         outs = " ".join(t["output"] for t in r["trace"])
         bad, tot = hallucinated_numbers(r["answer"], outs)
+        called = [t["tool"] for t in r["trace"]]
+        content_ok = all(k.lower() in r["answer"].lower() for k in spec.get("contains", []))
         rows.append({
-            "question": q, "tool_calls": r["stats"]["tool_calls"],
+            "question": q, "tool_calls": r["stats"]["tool_calls"], "tools": " > ".join(called),
+            "routing_ok": routing_ok(called, spec), "content_ok": content_ok,
             "invalid_calls": r["stats"]["invalid_calls"],
             "numbers_total": tot, "numbers_unsupported": bad,
             "latency_s": round(lat, 1), "answer": r["answer"].replace("\n", " ")[:600],
         })
         print(f"{len(rows):2}/{len(qs)} calls={rows[-1]['tool_calls']} invalid={rows[-1]['invalid_calls']} "
-              f"unsupported={bad}/{tot} {lat:.0f}s")
+              f"unsupported={bad}/{tot} route={'ok' if rows[-1]['routing_ok'] else 'WRONG'} {lat:.0f}s")
 
     n = len(rows)
     calls = sum(r["tool_calls"] for r in rows)
@@ -88,10 +122,13 @@ if __name__ == "__main__":
         "tool_use_rate": round(sum(r["tool_calls"] > 0 for r in rows) / n, 3),
         "invalid_tool_call_rate": round(sum(r["invalid_calls"] for r in rows) / calls, 3) if calls else None,
         "numeric_hallucination_rate": round(sum(r["numbers_unsupported"] for r in rows) / nums, 3) if nums else 0.0,
+        "tool_selection_accuracy": round(sum(r["routing_ok"] for r in rows) / n, 3),
+        "required_phrase_rate": round(sum(r["content_ok"] for r in rows) / n, 3),
         "avg_tool_calls": round(calls / n, 2),
         "avg_latency_s": round(sum(r["latency_s"] for r in rows) / n, 1),
     }
-    out = os.path.join(_ROOT, "data", "events", f"llm_eval_{a.model.replace(':', '_')}.csv")
+    tag = "_routing" if a.routing else ""
+    out = os.path.join(_ROOT, "data", "events", f"llm_eval{tag}_{a.model.replace(':', '_')}.csv")
     with open(out, "w", newline="") as f:
         w = csv.DictWriter(f, fieldnames=list(rows[0]))
         w.writeheader(); w.writerows(rows)

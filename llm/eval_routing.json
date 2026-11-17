@@ -1,0 +1,16 @@
+[
+ {"q": "What is the ASELS fundamental score for 2025Q2?", "must_any": ["get_fundamental_score"], "allowed": ["get_fundamental_score", "get_fundamental_metrics"]},
+ {"q": "How did the ASELS strategy perform in the backtest, and what was the Sharpe ratio?", "must_any": ["run_backtest_summary"], "allowed": ["run_backtest_summary"]},
+ {"q": "Where are the support and resistance levels for THYAO?", "must_any": ["find_support_resistance_levels"], "allowed": ["find_support_resistance_levels"]},
+ {"q": "What is the RSI of EREGL right now?", "must_any": ["calculate_indicators"], "allowed": ["calculate_indicators"]},
+ {"q": "Analyse the ticker ABCDE with the harness.", "must_any": ["start_analysis_session"], "allowed": ["start_analysis_session", "check_data_quality"], "contains": ["ANALYSIS_UNSAFE"]},
+ {"q": "Which stocks in the Crypto group lag their sector the most?", "must_any": ["rank_sector_relative_strength"], "allowed": ["rank_sector_relative_strength"], "contains": ["INVESTIGATE"]},
+ {"q": "Which sector group has the weakest relative strength right now?", "must_any": ["rank_sector_relative_strength"], "allowed": ["rank_sector_relative_strength"]},
+ {"q": "Is there a Wednesday effect in TUPRS?", "must_any": ["test_weekday_pattern"], "allowed": ["test_weekday_pattern"]},
+ {"q": "What news is recorded for THYAO?", "must_any": ["get_news_events"], "allowed": ["get_news_events"]},
+ {"q": "What did the macro environment look like in March 2025?", "must_any": ["get_macro_context"], "allowed": ["get_macro_context"]},
+ {"q": "Is the data for TURSG reliable enough to analyse?", "must_any": ["check_data_quality"], "allowed": ["check_data_quality"]},
+ {"q": "Give me the last 5 closing prices for TOASO.", "must_any": ["get_stock_history"], "allowed": ["get_stock_history"]},
+ {"q": "Show me the committed evidence for GUBRF.", "must_any": ["run_full_analysis", "build_evidence_bundle"], "allowed": ["start_analysis_session", "run_full_analysis", "build_evidence_bundle", "get_recommended_action", "check_data_quality"]},
+ {"q": "Explain what the RSI indicator means.", "must_any": [], "allowed": []}
+]

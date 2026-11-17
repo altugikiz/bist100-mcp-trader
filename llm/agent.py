@@ -89,6 +89,7 @@ def _validate_args(spec: dict, args: dict) -> str | None:
 _TOOL_CALL = re.compile(r"<tool_call>\s*(\{.*?\})\s*</tool_call>", re.S)
 _THINK = re.compile(r"^\s*<think>.*?</think>\s*", re.S)
 _TOKENIZER = None
+_MLX = None
 
 
 def parse_raw_reply(text: str) -> dict:
@@ -123,6 +124,21 @@ def _raw_options() -> dict:
     return opts
 
 
+_DISCLAIMER_END = ("belongs to a human reviewer.", "insan incelemesine aittir.")
+
+
+def _dedupe_paragraphs(text: str) -> str:
+    """Drop paragraphs that repeat an earlier paragraph verbatim (loop guard for small fine-tuned models)."""
+    seen, out = set(), []
+    for para in text.split("\n\n"):
+        key = para.strip()
+        if key and key in seen:
+            continue
+        seen.add(key)
+        out.append(para)
+    return "\n\n".join(out)
+
+
 def raw_chat(model: str, messages: list, tools: list, think: bool) -> dict:
     """Fine-tuned models: render the exact training-time chat format ourselves and parse the reply.
 
@@ -135,6 +151,29 @@ def raw_chat(model: str, messages: list, tools: list, think: bool) -> dict:
         _TOKENIZER = AutoTokenizer.from_pretrained(os.environ.get("BIST_TOKENIZER", "mlx-community/Qwen3-4B-4bit"))
     msgs = [{"role": "system", "content": _system_prompt()}] + messages
     prompt = _TOKENIZER.apply_chat_template(msgs, tools=tools, tokenize=False, add_generation_prompt=True)
+    if model.startswith("mlx:"):
+        # In-process MLX: base 4-bit model + LoRA adapter, no export and no server (mlx_lm.server would parse
+        # and swallow the <tool_call> block). Needs no extra disk and no internet.
+        global _MLX
+        if _MLX is None:
+            from mlx_lm import load
+            _MLX = load(os.environ.get("MLX_BASE", "mlx-community/Qwen3-8B-4bit"),
+                        adapter_path=os.environ.get("MLX_ADAPTER", "llm/adapters8b"))
+        from mlx_lm import generate
+        from mlx_lm.sample_utils import make_logits_processors, make_sampler
+        o = _raw_options()
+        # Repetition penalty: a small LoRA-tuned model can loop on long final answers at low temperature
+        procs = make_logits_processors(repetition_penalty=float(os.environ.get("MLX_REP", "1.15")),
+                                       repetition_context_size=256)
+        from mlx_lm import stream_generate
+        text = ""
+        for chunk in stream_generate(_MLX[0], _MLX[1], prompt=prompt, max_tokens=o["num_predict"],
+                                     sampler=make_sampler(temp=o["temperature"]), logits_processors=procs):
+            text += chunk.text
+            # Stop criterion: every training answer ends with the disclaimer; a second one means the model is looping
+            if sum(text.count(m) for m in _DISCLAIMER_END) >= 2:
+                break
+        return parse_raw_reply(_dedupe_paragraphs(text))
     body = {"model": model, "prompt": prompt, "raw": True, "stream": False,
             "options": _raw_options()}
     req = urllib.request.Request(f"{OLLAMA_URL}/api/generate", data=json.dumps(body).encode(),
