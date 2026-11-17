@@ -24,9 +24,13 @@ def _read_local_cache(ticker: str, start: str, end: str):
     path = os.path.join(_LOCAL_CACHE, f"{sym}.csv")
     if not os.path.isfile(path):
         return None
-    df = pd.read_csv(path, index_col="Date", parse_dates=True)
-    df = df.loc[(df.index >= pd.Timestamp(start)) & (df.index < pd.Timestamp(end))]
-    return df if not df.empty else None
+    full = pd.read_csv(path, index_col="Date", parse_dates=True)
+    df = full.loc[(full.index >= pd.Timestamp(start)) & (full.index < pd.Timestamp(end))]
+    if df.empty:
+        # Offline-first: do not fall back to the network; tell the caller what the local data covers.
+        raise ValueError(f"No cached price data for {sym} between {start} and {end}. "
+                         f"Local data covers {full.index[0].date()} to {full.index[-1].date()}.")
+    return df
 
 
 def fetch_ohlcv(ticker: str, start: str, end: str) -> pd.DataFrame:
