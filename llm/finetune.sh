@@ -26,11 +26,11 @@ case "${1:-}" in
     python -m mlx_lm lora "${common[@]}" --train --iters 10 --steps-per-report 5 --steps-per-eval 10 --val-batches 2 --save-every 10
     ;;
   train)
-    python llm/filter_dataset.py --model "$MODEL"
+    python llm/filter_dataset.py --model "$MODEL" --limit "${LIMIT:-5900}"
     python -m mlx_lm lora "${common[@]}" --train --iters "$ITERS" --steps-per-report 10 --steps-per-eval 100 --val-batches 3 --save-every 50
     ;;
   resume)
-    python llm/filter_dataset.py --model "$MODEL"
+    python llm/filter_dataset.py --model "$MODEL" --limit "${LIMIT:-5900}"
     python -m mlx_lm lora "${common[@]}" --train --iters "$ITERS" --steps-per-report 10 --steps-per-eval 100 --val-batches 3 --save-every 50 \
       --resume-adapter-file "$ADAPTERS/adapters.safetensors"
     ;;
