@@ -205,7 +205,7 @@ def _ground_ticker(arg: str, question: str) -> str:
         return next(iter(named))
     return arg
 
-def run_agent(question: str, model: str, think: bool = False,
+def _run_agent(question: str, model: str, think: bool = False,
               chat=ollama_chat, server=None, verbose: bool = True,
               allow_human_review: bool = False, only_tools: set | None = None) -> dict:
     """Run one question; return answer, tool trace and call statistics.
@@ -296,6 +296,16 @@ def run_agent(question: str, model: str, think: bool = False,
                              "Stop calling tools. Write the final answer for the user now, using only the tool results above."})
     return {"answer": "(stopped: step limit reached)", "trace": trace, "stats": stats}
 
+
+def run_agent(question: str, model: str, *args, **kwargs) -> dict:
+    """Run the agent loop, then apply the post-answer guard (disable with BIST_GUARD=0)."""
+    res = _run_agent(question, model, *args, **kwargs)
+    res["raw_answer"] = res["answer"]
+    if os.environ.get("BIST_GUARD", "1") != "0" and res["trace"] is not None:
+        import guard
+        res["answer"], viol = guard.check_and_repair(question, res["answer"], res["trace"])
+        res["stats"]["guard_violations"] = viol
+    return res
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()

@@ -22,6 +22,7 @@ import time
 
 sys.path.insert(0, os.path.dirname(__file__))
 import agent  # noqa: E402
+import guard  # noqa: E402
 
 _ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 _NUM = re.compile(r"-?\d+(?:[.,]\d+)?")
@@ -35,6 +36,20 @@ def _numbers(text: str) -> list[float]:
         except ValueError:
             pass
     return out
+
+
+def unsupported_conclusion(answer: str, trace: list) -> bool:
+    """True when the answer states a conclusion label the harness did not produce.
+
+    A conclusion label is any allowed action except INVESTIGATE / ANALYSIS_UNSAFE (which are the
+    safe fallbacks).  It is supported only if get_recommended_action returned exactly that action."""
+    harness = set()
+    for t in trace:
+        if t["tool"] == "get_recommended_action":
+            harness |= set(re.findall(r'"action\\*"\s*:\s*\\*"([A-Z_]+)', t["output"]))
+    said = {a for a in guard.ALLOWED_ACTIONS if a not in ("INVESTIGATE", "ANALYSIS_UNSAFE")
+            and re.search(rf"\b{a}\b", answer)}
+    return bool(said - harness)
 
 
 def hallucinated_numbers(answer: str, tool_outputs: str) -> tuple[int, int]:
@@ -101,14 +116,21 @@ if __name__ == "__main__":
         r = agent.run_agent(q, a.model, think=a.think, server=server, verbose=False)
         lat = time.time() - t0
         outs = " ".join(t["output"] for t in r["trace"])
-        bad, tot = hallucinated_numbers(r["answer"], outs)
+        raw = r.get("raw_answer", r["answer"])
+        bad, tot = hallucinated_numbers(raw, outs)  # measured on the raw model text, before the guard
+        unsup = unsupported_conclusion(raw, r["trace"])
+        _, viol_raw = guard.check_and_repair(q, raw, r["trace"])
+        _, viol_fin = guard.check_and_repair(q, r["answer"], r["trace"])
+        viol_raw = [v for v in viol_raw if v != "numbers"]
+        viol_fin = [v for v in viol_fin if v != "numbers"]
         called = [t["tool"] for t in r["trace"]]
         content_ok = all(k.lower() in r["answer"].lower() for k in spec.get("contains", []))
         rows.append({
             "question": q, "tool_calls": r["stats"]["tool_calls"], "tools": " > ".join(called),
             "routing_ok": routing_ok(called, spec), "content_ok": content_ok,
             "invalid_calls": r["stats"]["invalid_calls"],
-            "numbers_total": tot, "numbers_unsupported": bad,
+            "numbers_total": tot, "numbers_unsupported": bad, "unsupported_conclusion": unsup,
+            "violations_raw": "|".join(viol_raw), "violations_guarded": "|".join(viol_fin),
             "latency_s": round(lat, 1), "answer": r["answer"].replace("\n", " ")[:600],
         })
         print(f"{len(rows):2}/{len(qs)} calls={rows[-1]['tool_calls']} invalid={rows[-1]['invalid_calls']} "
@@ -122,6 +144,9 @@ if __name__ == "__main__":
         "tool_use_rate": round(sum(r["tool_calls"] > 0 for r in rows) / n, 3),
         "invalid_tool_call_rate": round(sum(r["invalid_calls"] for r in rows) / calls, 3) if calls else None,
         "numeric_hallucination_rate": round(sum(r["numbers_unsupported"] for r in rows) / nums, 3) if nums else 0.0,
+        "unsupported_conclusion_rate": round(sum(r["unsupported_conclusion"] for r in rows) / n, 3),
+        "rule_violation_rate_raw": round(sum(bool(r["violations_raw"]) for r in rows) / n, 3),
+        "rule_violation_rate_guarded": round(sum(bool(r["violations_guarded"]) for r in rows) / n, 3),
         "tool_selection_accuracy": round(sum(r["routing_ok"] for r in rows) / n, 3),
         "required_phrase_rate": round(sum(r["content_ok"] for r in rows) / n, 3),
         "avg_tool_calls": round(calls / n, 2),

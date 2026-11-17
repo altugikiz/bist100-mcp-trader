@@ -372,7 +372,7 @@ def ex_macro_rng(y, m, q, lang):
 # ---------------- extra generators 2: legacy analytics tools, unknown inputs, backtest ----------------
 import re
 
-NOT_IN_UNIVERSE = ["GARAN", "SISE", "ASTOR", "SAHOL", "HEKTS", "KOZAL", "VAKBN", "YKBNK", "PGSUS1", "BRSAN", "XYZAB", "QWERT"]
+NOT_IN_UNIVERSE = ["GARAN", "SISE", "ASTOR", "SAHOL", "HEKTS", "KOZAL", "VAKBN", "YKBNK", "PGSUS1", "BRSAN", "XYZAB", "QWERT", "LMNOP", "TEST1", "FOOBR", "MNBVC"]
 Q_IND = [("{t} için teknik göstergeler (SMA, RSI, MACD) ne diyor?", "tr"), ("{t} hissesinde RSI ve MACD durumu nedir?", "tr"),
          ("What do the SMA, RSI and MACD indicators say for {t}?", "en"), ("Is {t} overbought or oversold by RSI?", "en")]
 Q_HIST = [("{t} hissesinin son 5 günlük fiyat hareketi nasıl?", "tr"), ("Show the last 5 trading days of {t}.", "en"),
@@ -387,7 +387,10 @@ Q_BT = [("ASELS stratejisi 2024-2025'te nasıl performans gösterdi?", "tr", {})
         ("Backtest with technical weight 0.7 and fundamental weight 0.3: how does it compare?", "en", {"tech_weight": 0.7, "fund_weight": 0.3})]
 Q_UNK = [("{t} hissesini analiz et.", "tr"), ("{t} için tam analiz yapar mısın?", "tr"), ("Run a full analysis for {t}.", "en"), ("Analyse {t} with the harness.", "en")]
 Q_BADGRP = [("Crypto grubunda en geride kalan hisseler hangileri?", "tr", "Crypto"), ("Which stocks in the Aviation group lag their sector most?", "en", "Aviation"),
-            ("Rank the Gaming group by sector-relative strength.", "en", "Gaming")]
+            ("Rank the Gaming group by sector-relative strength.", "en", "Gaming"),
+            ("Space grubunda sektöre göre zayıf kalan hisseleri sırala.", "tr", "Space"),
+            ("Which Retail stocks are weakest versus their sector?", "en", "Retail"),
+            ("Cryptocurrency grubunda en geride kalanlar kimler?", "tr", "Cryptocurrency")]
 
 
 def _find(d, key):
@@ -534,9 +537,10 @@ def safe(fn, *a):
 if __name__ == "__main__":
     data = []
     for t in TICKERS:
-        for q, lang in Q_FULL:
+        # full-flow samples are capped: they used to dominate the data and taught the model to over-call
+        for q, lang in random.sample(Q_FULL, 2):
             data.append(safe(ex_full, t, q.format(t=t), lang))
-        for q, lang in random.sample(Q_ADV, 2):
+        for q, lang in random.sample(Q_ADV, 1):
             data.append(safe(ex_full, t, q.format(t=t), lang, True))
         for q, lang in random.sample(Q_WD, 2):
             data.append(safe(ex_weekday, t, q.format(t=t), lang))
@@ -555,7 +559,7 @@ if __name__ == "__main__":
         for q, lang in Q_GRP_LAG:
             data.append(safe(ex_group, g, q.format(g=g), lang))
     for t in TICKERS:
-        for q, lang in random.sample(Q_DQ_FULL, 2):
+        for q, lang in random.sample(Q_DQ_FULL, 1):
             data.append(safe(ex_full_dq, t, q.format(t=t), lang))
         for _, kw, qtr, qen in random.sample(Q_REV_KEY, 2):
             data.append(safe(ex_rev_key, t, kw, qtr, qen, random.choice(["tr", "en"])))
@@ -570,23 +574,23 @@ if __name__ == "__main__":
             data.append(safe(ex_dq, t, q.format(t=t), lang))
     # ---- extra 2: legacy analytics tools, backtest, fundamentals score, unknown inputs ----
     for t in TICKERS:
-        for q, lang in random.sample(Q_IND, 1):
+        for q, lang in random.sample(Q_IND, 2):
             data.append(safe(ex_ind, t, q, lang))
-        for q, lang in random.sample(Q_HIST, 1):
+        for q, lang in random.sample(Q_HIST, 2):
             data.append(safe(ex_hist, t, q, lang))
-    for t in random.sample(TICKERS, 8):
-        q, lang = random.choice(Q_SR)
-        data.append(safe(ex_sr, t, q, lang))
+    for t in TICKERS:
+        for q, lang in Q_SR:
+            data.append(safe(ex_sr, t, q, lang))
     for p in ["2024Q1", "2024Q2", "2024Q3", "2024Q4", "2025Q1", "2025Q2", "2025Q3", "2025Q4"]:
-        for q, lang in random.sample(Q_FS, 2):
+        for q, lang in Q_FS:
             data.append(safe(ex_fscore, p, q, lang))
-    for _ in range(2):
+    for _ in range(5):
         for q, lang, args in Q_BT:
             data.append(safe(ex_backtest, q, lang, args))
     for t in NOT_IN_UNIVERSE:
-        for q, lang in random.sample(Q_UNK, 2):
+        for q, lang in Q_UNK:
             data.append(safe(ex_unknown_ticker, t, q, lang))
-    for q, lang, g in Q_BADGRP * 2:
+    for q, lang, g in Q_BADGRP * 5:
         data.append(safe(ex_bad_group, q, lang, g))
     for q, a in NO_TOOL * 2:
         data.append({"messages": [{"role": "system", "content": SYSTEM}, {"role": "user", "content": q}, {"role": "assistant", "content": a}], "tools": TOOLS})
