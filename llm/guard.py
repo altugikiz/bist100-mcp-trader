@@ -38,7 +38,11 @@ def _numbers(text):
     return out
 
 
+_INDEX_NAMES = re.compile(r"\b(BIST[\s-]?(100|30|50)|XU(100|030)|top[\s-]?100)\b", re.I)
+
+
 def unsupported_numbers(answer, tool_text):
+    answer = _INDEX_NAMES.sub(" ", answer)   # index names such as "BIST 100" are labels, not figures
     pool = _numbers(tool_text)
     bad, total = 0, 0
     for x in _numbers(answer):
