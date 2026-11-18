@@ -169,11 +169,12 @@ Base 8B (`bist-analyst`) vs fine-tuned 8B on the unseen 14-question set (`llm/ev
 
 | Metric | Base (14 / 20) | Fine-tuned (14 / 20) |
 |---|---|---|
-| Tool-selection accuracy | 1.00 / 1.00 | 0.79 / 0.85 |
-| Unsupported conclusion rate | 7.1% / 10.0% | 0% / 0% |
-| Rule violations (raw) | 100% / 85% | 43% / 30% |
-| Numeric hallucination | 9.4% / 1.3% | 11.0% / 1.8% |
-| Latency per question | 12 s / 22 s | 87 s / 138 s |
+| Tool-selection accuracy | 1.00 / 1.00 | 0.86 / 0.80 |
+| Unsupported conclusion rate | 7.1% / 0% | 14.3% / 0% |
+| Rule violations (raw) | 100% / 85% | 36% / 20% |
+| Numeric hallucination | 6.9% / 0.0% | 6.5% / 1.2% |
+| Invalid tool-call rate | 7.7% / 0% | 5.9% / 0% |
+| Latency per question | 12 s / 21 s | 71 s / 104 s |
 
 `llm/guard.py` (post-answer guard, on by default, `BIST_GUARD=0` disables it) brings rule violations to 0% for both. Recommended demo model: base 8B + guard; the fine-tuned model is the measured comparison. The 4B fine-tune was a negative result. Price data is read offline from `data/universe_cache`; Yahoo Finance is only used with `BIST_ALLOW_NETWORK=1`. Details: report Sections 13.2–13.3.
 
