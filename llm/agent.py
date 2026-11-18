@@ -196,6 +196,10 @@ def ollama_chat(model: str, messages: list, tools: list, think: bool) -> dict:
 
 
 
+_PLAN_RE = re.compile(r"(let's begin|let me (start|begin)|i will (start|begin|follow|call|run|first)|first step|"
+                      r"following steps|could you (please )?provide|please provide|please specify|need to know)", re.I)
+
+
 def _ground_ticker(arg: str, question: str) -> str:
     """Return the ticker named in the question when the model's argument differs from it."""
     import re
@@ -220,6 +224,7 @@ def _run_agent(question: str, model: str, think: bool = False,
     trace, stats = [], {"tool_calls": 0, "invalid_calls": 0, "no_tool_text_replies": 0}
 
     nudged = False
+    plan_nudged = False
     final_only = False   # set once the analysis is complete or the model starts looping
     last_sid = None      # most recent real session id returned by start_analysis_session
     for _ in range(MAX_STEPS):
@@ -232,6 +237,13 @@ def _run_agent(question: str, model: str, think: bool = False,
             return {"answer": (msg.get("content") or "").strip() or "(no final answer produced)",
                     "trace": trace, "stats": stats}
         if not calls:
+            if not trace and not plan_nudged and _PLAN_RE.search(msg.get("content") or ""):
+                # The model described a plan or asked for details instead of calling a tool: tool arguments have defaults
+                plan_nudged = True
+                messages.append({"role": "user", "content":
+                                 "Do not describe a plan or ask for more details. Every tool parameter has a default: "
+                                 "call the best-matching tool now."})
+                continue
             if not (msg.get("content") or "").strip() and trace and not nudged:
                 # Small models sometimes return an empty reply right after tool output
                 nudged = True
@@ -259,7 +271,7 @@ def _run_agent(question: str, model: str, think: bool = False,
             # Date grounding: when the question names no year, a date range invented by the model is dropped
             # so the tool's own default window (the full local data) applies.
             if not re.search(r"\b(19|20)\d{2}\b", question):
-                for key in ("start", "end", "start_date", "end_date"):
+                for key in ("start", "end", "start_date", "end_date", "date"):
                     if key in args and key in by_name.get(name, {}).get("function", {}).get("parameters", {}).get("properties", {}):
                         args.pop(key)
                         stats["dates_dropped"] = stats.get("dates_dropped", 0) + 1
