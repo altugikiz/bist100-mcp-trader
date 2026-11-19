@@ -1076,7 +1076,7 @@ def test_weekday_pattern(
 
     Args:
         ticker:     Short BIST ticker, e.g. 'THYAO'.
-        start_date: Optional 'YYYY-MM-DD' lower bound.
+        start_date: Optional 'YYYY-MM-DD' lower bound (default 2024-01-01, the start of the data period).
         end_date:   Optional 'YYYY-MM-DD' upper bound (never later than the analysis date).
         train_end:  Optional 'YYYY-MM-DD' last in-sample day; later days are the out-of-sample
                     test. Empty = chronological 70/30 split.
@@ -1091,8 +1091,7 @@ def test_weekday_pattern(
     """
     ticker = ticker.upper()
     df = _load_price_df(ticker, end_date)
-    if start_date:
-        df = df.loc[df.index >= pd.Timestamp(start_date)]
+    df = df.loc[df.index >= pd.Timestamp(start_date or _rx.DEFAULT_START)]
     df = calculate_weekday_returns(df)
 
     res = _wd_test(df, ticker)
@@ -1143,6 +1142,7 @@ def detect_reversal_events(
     supertrend_state: str = "",
     ichimoku_state: str = "",
     min_gap_days: int = 0,
+    start: str = "",
 ) -> dict:
     """
     Detect timestamped technical reversal events (Bollinger touches, RSI
@@ -1169,6 +1169,8 @@ def detect_reversal_events(
         ichimoku_state:   Optional 'above_cloud', 'in_cloud' or 'below_cloud'.
         min_gap_days:     If > 0, keep only events at least this many calendar days apart
                           (reduces clustered, overlapping observations).
+        start:            Optional first event date 'YYYY-MM-DD' (default 2024-01-01, the start of the
+                          data period); earlier history is used only to warm up the indicators.
 
     Returns:
         {"ticker", "as_of", "event_types", "filters", "statistics": {type: {...}},
@@ -1206,6 +1208,8 @@ def detect_reversal_events(
     for col, val in filters.items():
         log = log[log[col] == val]
     log = log.sort_values("event_date")
+    start_ts = pd.Timestamp(start or _rx.DEFAULT_START)
+    log = log[pd.to_datetime(log["event_date"]) >= start_ts]
     n_before_thin = len(log)
     log = _thin_events(log, int(min_gap_days))
 
@@ -1213,6 +1217,7 @@ def detect_reversal_events(
     baseline = {}
     for h in (1, 3, 5, 10):
         fr = (close.shift(-h) / close - 1).dropna()
+        fr = fr[fr.index >= start_ts]
         baseline[h] = {"mean": float(fr.mean()), "pos": float((fr > 0).mean())}
 
     warnings = notes + ["Forward returns use only closes up to the analysis date; incomplete windows are excluded, not estimated.",
@@ -1486,7 +1491,7 @@ def test_weekday_sequence(
         second_day:       Later weekday name.
         second_direction: 'positive' or 'negative' return on the second day.
         as_of:            Analysis date (never later than 2026-09-10).
-        start:            Optional first date.
+        start:            Optional first date (default 2024-01-01, the start of the data period).
         train_end:        Last in-sample date; later weeks are out-of-sample (empty = 70/30 split).
         cost_bps:         Optional round-trip transaction cost in basis points.
         n_hypotheses:     Number of patterns scanned (for Bonferroni alpha = 0.05 / n).

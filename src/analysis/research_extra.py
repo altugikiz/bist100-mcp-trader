@@ -202,6 +202,8 @@ def sector_catchup_backtest(sector_group: str, as_of: str = "", start: str = "20
 # 2. Weekday sequence (e.g. weak Monday -> strong Friday) with date-based OOS split
 # ---------------------------------------------------------------------------
 
+DEFAULT_START = "2024-01-01"   # start of the instructor-defined data period (01.01.2024 - 10.09.2026)
+
 _DAYS = {"monday": 0, "tuesday": 1, "wednesday": 2, "thursday": 3, "friday": 4,
          "mon": 0, "tue": 1, "wed": 2, "thu": 3, "fri": 4,
          "pazartesi": 0, "salı": 1, "çarşamba": 2, "perşembe": 3, "cuma": 4}
@@ -234,8 +236,7 @@ def weekday_sequence_test(ticker: str, first_day: str = "Monday", first_directio
     first_day, second_day = [k for k, v in _DAYS.items() if v == fd and len(k) > 3 and k.isascii()][0].capitalize(), \
                             [k for k, v in _DAYS.items() if v == sd and len(k) > 3 and k.isascii()][0].capitalize()
     df = load_ohlcv(ticker, as_of)
-    if start:
-        df = df.loc[df.index >= pd.Timestamp(start)]
+    df = df.loc[df.index >= pd.Timestamp(start or DEFAULT_START)]
     df = df.copy()
     df["ret"] = df["Close"].pct_change()
     df["wk"] = df.index.to_period("W-SUN")
