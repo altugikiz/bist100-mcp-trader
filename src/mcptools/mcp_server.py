@@ -1182,9 +1182,23 @@ def detect_reversal_events(
         return {"ticker": ticker, "as_of": str(snap.date()), "event_types": [], "statistics": {}, "recent_events": []}
 
     all_types = sorted(log["event_type"].unique().tolist())
+    notes = []
+    et = event_type.strip().lower().replace(" ", "_").replace("-", "_") if event_type else ""
+    if et and et not in all_types:
+        # tolerate loose names such as 'RSI', 'oversold', 'rsi_below_30', 'supertrend'
+        if "rsi" in et or "oversold" in et or "sold" in et:
+            rsi_state = rsi_state or ("peak_zone" if ("over_bought" in et or "overbought" in et or "peak" in et) else "trough_zone")
+        elif "supertrend" in et and "bear" in et:
+            supertrend_state = supertrend_state or "bearish"
+        elif "supertrend" in et and "bull" in et:
+            supertrend_state = supertrend_state or "bullish"
+        notes.append(f"event_type '{event_type}' is not an exact event type; it was interpreted as a state filter "
+                     "(see 'filters') and all event types were searched.")
+        et = ""
+    elif et in ("", None):
+        pass
+    event_type = et
     if event_type:
-        if event_type not in all_types:
-            return {"error": f"Unknown event_type '{event_type}'.", "event_types": all_types}
         log = log[log["event_type"] == event_type]
     filters = {k: v for k, v in {"rsi_state": rsi_state, "volume_regime": volume_regime,
                                  "supertrend_state": supertrend_state, "ichimoku_state": ichimoku_state}.items() if v}
@@ -1200,7 +1214,7 @@ def detect_reversal_events(
         fr = (close.shift(-h) / close - 1).dropna()
         baseline[h] = {"mean": float(fr.mean()), "pos": float((fr > 0).mean())}
 
-    warnings = ["Forward returns use only closes up to the analysis date; incomplete windows are excluded, not estimated.",
+    warnings = notes + ["Forward returns use only closes up to the analysis date; incomplete windows are excluded, not estimated.",
                 "Compare with the all-days baseline: a positive average alone is not evidence of a reversal edge.",
                 "Events cluster in time, so observations overlap; read small samples with caution."]
     if filters and len(log) < 10:
@@ -1246,9 +1260,8 @@ def detect_reversal_events(
 @mcp.tool()
 def get_macro_context(start_date: str = "", end_date: str = "") -> dict:
     """
-    Return the macro context (USD/TRY, EUR/TRY, TCMB policy rate, TUIK CPI
-    year-over-year, Fed funds rate) for a date range, with start/end values
-    and changes.
+    Market-wide macro levels and changes (USD/TRY, EUR/TRY, TCMB policy rate, TUIK inflation, Fed rate) for a
+    date range. Takes no ticker; for a stock's relationship with a macro series use analyze_macro_stock_relationship.
 
     Args:
         start_date: 'YYYY-MM-DD' (empty = 30 days before end_date).
@@ -1261,8 +1274,11 @@ def get_macro_context(start_date: str = "", end_date: str = "") -> dict:
     macro = pd.read_csv(path, index_col="Date", parse_dates=True)
     end   = pd.Timestamp(end_date) if end_date else macro.index[-1]
     start = pd.Timestamp(start_date) if start_date else end - pd.Timedelta(days=30)
+    clip_note = None
     if end > macro.index[-1] or start < macro.index[0]:
-        return {"error": f"Macro data covers {macro.index[0].date()} to {macro.index[-1].date()} only."}
+        clip_note = (f"Requested range {start.date()}..{end.date()} was clipped to the available macro data "
+                     f"{macro.index[0].date()}..{macro.index[-1].date()}.")
+        end, start = min(end, macro.index[-1]), max(start, macro.index[0])
     sl = macro.loc[start:end]
     if sl.empty:
         return {"error": "No macro rows in the requested range."}
@@ -1277,7 +1293,7 @@ def get_macro_context(start_date: str = "", end_date: str = "") -> dict:
         "start":  {"date": sl.index[0], **first.to_dict()},
         "end":    {"date": sl.index[-1], **last.to_dict()},
         "change": change,
-        "notes": [
+        "notes": ([clip_note] if clip_note else []) + [
             "tufe_yoy is linearly interpolated between published anchor points "
             "and is NaN before 2024-05-31.",
             "tcmb_rate and fed_rate are step series forward-filled from decision dates.",
@@ -1509,11 +1525,8 @@ def analyze_macro_stock_relationship(
     frequency: str = "weekly",
 ) -> dict:
     """
-    Relationship between a stock and a macro series over a period: stock total
-    return, macro start/end values, correlation of weekly (or monthly/daily)
-    stock returns with the macro series' change, first-half vs second-half
-    consistency, and the stock's return in FX terms for usdtry/eurtry.
-    Association only, never causation.
+    Relationship between ONE stock and USD/TRY, EUR/TRY, policy rate, inflation or Fed rate: correlation, stock
+    return in FX terms and first-half/second-half stability. Use for "how does X relate to the exchange rate" questions.
 
     Args:
         ticker:         Short BIST ticker, e.g. 'EREGL'.

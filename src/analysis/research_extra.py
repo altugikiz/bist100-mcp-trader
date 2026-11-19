@@ -202,7 +202,16 @@ def sector_catchup_backtest(sector_group: str, as_of: str = "", start: str = "20
 # 2. Weekday sequence (e.g. weak Monday -> strong Friday) with date-based OOS split
 # ---------------------------------------------------------------------------
 
-_DAYS = {"monday": 0, "tuesday": 1, "wednesday": 2, "thursday": 3, "friday": 4}
+_DAYS = {"monday": 0, "tuesday": 1, "wednesday": 2, "thursday": 3, "friday": 4,
+         "mon": 0, "tue": 1, "wed": 2, "thu": 3, "fri": 4,
+         "pazartesi": 0, "salı": 1, "çarşamba": 2, "perşembe": 3, "cuma": 4}
+_NEG = {"negative", "down", "fall", "falling", "decline", "drop", "loss", "red", "bearish", "lower", "düşüş", "negatif", "düşük"}
+_POS = {"positive", "up", "rise", "rising", "gain", "green", "bullish", "higher", "yükseliş", "pozitif", "artış"}
+
+
+def _direction(x: str):
+    x = str(x).strip().lower()
+    return "negative" if x in _NEG else "positive" if x in _POS else None
 
 
 def weekday_sequence_test(ticker: str, first_day: str = "Monday", first_direction: str = "negative",
@@ -215,12 +224,15 @@ def weekday_sequence_test(ticker: str, first_day: str = "Monday", first_directio
     (default: 70% of the weeks) and a cost-adjusted hold return from first-day close to
     second-day close.
     """
-    fd, sd = _DAYS.get(first_day.lower()), _DAYS.get(second_day.lower())
+    fd, sd = _DAYS.get(first_day.strip().lower()), _DAYS.get(second_day.strip().lower())
     if fd is None or sd is None or fd >= sd:
-        return {"error": "first_day and second_day must be weekdays with first_day earlier in the week."}
-    for dname in (first_direction, second_direction):
-        if dname not in ("positive", "negative"):
-            return {"error": "direction must be 'positive' or 'negative'."}
+        return {"error": "first_day and second_day must be weekday names (Monday..Friday) with first_day earlier in the week."}
+    fdir, sdir = _direction(first_direction), _direction(second_direction)
+    if fdir is None or sdir is None:
+        return {"error": "first_direction and second_direction must be 'positive' or 'negative'."}
+    first_direction, second_direction = fdir, sdir
+    first_day, second_day = [k for k, v in _DAYS.items() if v == fd and len(k) > 3 and k.isascii()][0].capitalize(), \
+                            [k for k, v in _DAYS.items() if v == sd and len(k) > 3 and k.isascii()][0].capitalize()
     df = load_ohlcv(ticker, as_of)
     if start:
         df = df.loc[df.index >= pd.Timestamp(start)]
@@ -269,7 +281,10 @@ def weekday_sequence_test(ticker: str, first_day: str = "Monday", first_directio
         "train_end": str(cut.date()), "full_sample": full, "in_sample": ins, "out_of_sample": oos,
         "evidence_summary": (
             f"{first_day} {first_direction} -> {second_day} {second_direction}: "
-            + ("stable out of sample." if stable else "NOT stable out of sample (no reliable pattern).")
+            + (("same direction in and out of sample and significant after multiple-testing correction."
+                if full.get("binomial_p") is not None and full["binomial_p"] < alpha else
+                "same direction out of sample, but NOT statistically significant after correction: weak evidence only.")
+               if stable else "NOT stable out of sample (no reliable pattern).")
             + (f" Full-sample P(outcome|condition)={full['p_outcome_given_condition']*100:.1f}% vs "
                f"{full['p_outcome_unconditional']*100:.1f}% unconditional (p={full['binomial_p']:.3f}, "
                f"n={full['weeks_with_condition']} weeks)." if full.get("binomial_p") is not None else "")),
@@ -375,8 +390,26 @@ def fundamental_change(ticker: str, as_of: str = "", horizons=(1, 5, 20)) -> dic
                           "n_growth": int(len(pos)),
                           "mean_abnormal_after_profit_decline": float(neg[col].mean()) if len(neg) else None,
                           "n_decline": int(len(neg))}
+    def pc(x):
+        return "n/a" if x is None else f"{x*100:+.1f}%"
+
+    lines = [f"Latest quarter disclosed by {ts.date()}: {cp} (estimated disclosure {latest_reaction['disclosure_date_estimate']}).",
+             f"Revenue vs same quarter last year: {pc(changes['revenue_yoy'])}; vs previous quarter: {pc(changes['revenue_qoq'])}.",
+             f"Net profit vs same quarter last year: {pc(changes['net_profit_yoy'])}; vs previous quarter: {pc(changes['net_profit_qoq'])}."]
+    if changes["ebitda_margin"] is not None:
+        d = changes["ebitda_margin_yoy_change_pp"]
+        lines.append(f"EBITDA margin {changes['ebitda_margin']*100:.1f}%"
+                     + ("" if d is None else f", {abs(d):.1f} percentage points {'higher' if d > 0 else 'lower'} than a year earlier") + ".")
+    if nd_ebitda is not None:
+        lines.append(f"Net debt / TTM EBITDA: {nd_ebitda:.2f}x.")
+    for h in horizons:
+        if latest_reaction[f"window_complete_{h}d"]:
+            lines.append(f"{h}-day return after disclosure: {pc(latest_reaction[f'raw_{h}d'])}; abnormal vs XU100 "
+                         f"{pc(latest_reaction[f'abnormal_vs_xu100_{h}d'])}, vs sector {pc(latest_reaction[f'abnormal_vs_sector_{h}d'])}.")
+        else:
+            lines.append(f"{h}-day window after disclosure is NOT complete by the analysis date (no value).")
     return {
-        "ticker": ticker, "as_of": str(ts.date()), "latest_disclosed_quarter": cp,
+        "ticker": ticker, "as_of": str(ts.date()), "latest_disclosed_quarter": cp, "summary": lines,
         "benchmark_type": btype, "changes": changes, "reaction_to_latest": latest_reaction,
         "historical_association": assoc, "quarters_excluded_not_yet_disclosed": excluded,
         "warnings": ([warn] if warn else []) + [
