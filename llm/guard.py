@@ -107,6 +107,24 @@ def check_and_repair(question, answer, trace):
         add.append("Research label: **INVESTIGATE** (historical evidence only; no harness action was produced)." if not tr else
                    "Araştırma etiketi: **INVESTIGATE** (yalnızca tarihsel kanıt; harness aksiyonu üretilmedi).")
 
+    # scope line: restate analysis date / latest disclosed quarter taken from the question and tool output
+    scope = []
+    m = re.search(r"Analysis date:\s*(\d{2}\.\d{2}\.\d{4})", question)
+    if m:
+        iso = "-".join(reversed(m.group(1).split(".")))
+        if m.group(1) not in answer and iso not in answer:
+            scope.append(f"Analiz tarihi: {m.group(1)}" if tr else f"Analysis date: {m.group(1)}")
+    q = re.search(r'"latest_disclosed_quarter"\s*:\s*"?(\d{4}Q\d)', tool_text)
+    if q and q.group(1) not in answer:
+        scope.append(f"Son açıklanan çeyrek: {q.group(1)}" if tr else f"Latest disclosed quarter: {q.group(1)}")
+    if scope:
+        viol.append("scope")
+        add.append(" | ".join(scope) + ".")
+
+    if not trace:
+        add.append("Bu soru araç kanıtı olmadan yanıtlanamaz; al/sat kararı verilmez." if tr else
+                   "No tool evidence was gathered, so no buy/sell call can be made; this is not an investment recommendation.")
+
     if not _DISCLAIMER.search(answer):
         viol.append("disclaimer")
         add.append(_TAIL["tr" if tr else "en"])
