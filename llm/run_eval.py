@@ -88,6 +88,8 @@ def routing_ok(called: list, spec: dict) -> bool:
     """True when the called tools satisfy the expected routing (see EXPECTED_MAIN)."""
     must = spec.get("must_any", [])
     must_all = spec.get("must_all", [])
+    if spec.get("any_ok"):             # either answering directly or using allowed tools is acceptable
+        return all(t in spec["allowed"] for t in called)
     if not must and not must_all:     # no-tool question: any tool call is over-calling
         return not called
     return (any(t in must for t in called) if must else True) and all(t in called for t in must_all) \

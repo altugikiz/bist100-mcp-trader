@@ -134,12 +134,18 @@ def check_and_repair(question, answer, trace):
                    "araştırma etiketi **INVESTIGATE**.")
 
     if (re.search(r"alay[ıi]m m[ıi]|hedef fiyat|target price|should i (buy|sell)|buy or sell|\bBUY\b.*\bSELL\b", question, re.I)
-            and not re.search(r"no buy/sell recommendation|Al/sat önerisi ve hedef fiyat verilemez", answer)):
+            and not re.search(r"no buy/sell recommendation|Al/sat önerisi ve hedef fiyat verilemez", answer, re.I)):
         viol.append("advice_request")
         add.append("No buy/sell recommendation and no target price can be given; the evidence above is historical and educational. "
                    "Claims such as 'will certainly rise' are not verified by the data." if not tr else
                    "Al/sat önerisi ve hedef fiyat verilemez; yukarıdaki kanıt tarihsel ve eğitim amaçlıdır. "
                    "'Kesin yükselir' gibi iddialar veriyle doğrulanmış değildir.")
+
+    # a bare BUY/SELL verdict demanded by the user must never be given
+    if re.search(r"(answer|cevap)\s*:?\s*\**\s*(BUY|SELL|AL|SAT)\b", answer, re.I) and not re.search(r"withdrawn|geri çekil", answer, re.I):
+        viol.append("binary_advice")
+        add.append("The BUY/SELL verdict above is withdrawn: a buy or sell call cannot be derived from this evidence; label: **INVESTIGATE**." if not tr else
+                   "Yukarıdaki AL/SAT hükmü geri çekilmiştir: bu kanıttan al/sat kararı çıkarılamaz; etiket: **INVESTIGATE**.")
 
     if not trace:
         add.append("Bu soru araç kanıtı olmadan yanıtlanamaz; al/sat kararı verilmez." if tr else

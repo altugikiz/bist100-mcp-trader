@@ -232,7 +232,8 @@
     "allowed": [
       "calculate_fundamental_change",
       "get_fundamental_metrics",
-      "check_data_quality"
+      "check_data_quality",
+      "get_stock_history"
     ],
     "contains": [
       "2026Q2|Q2 2026|2026 Q2|2026/6|2. çeyrek|Q2"
@@ -252,7 +253,8 @@
     ],
     "contains": [
       "10.09.2026|2026-09-10"
-    ]
+    ],
+    "any_ok": true
   },
   {
     "q": "Data period: 01.01.2024-10.09.2026. Analysis date: 10.09.2026. Do not use anything published after that date. Describe the relationship between USD/TRY and EREGL since 2025-01-01 and say whether the exchange rate caused the moves.",

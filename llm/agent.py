@@ -281,6 +281,20 @@ def _run_agent(question: str, model: str, think: bool = False,
             if last_sid and isinstance(args.get("session_id"), str) and args["session_id"] != last_sid:
                 stats["session_corrected"] = stats.get("session_corrected", 0) + 1
                 args["session_id"] = last_sid
+            # Argument repair: map common synonyms onto the tool's real parameter names; unknown extras are dropped.
+            if name in by_name:
+                props = by_name[name]["function"]["parameters"].get("properties", {})
+                syn = {"start_date": "start", "from_date": "start", "end_date": "as_of", "end": "as_of", "date": "as_of",
+                       "as_of_date": "as_of", "analysis_date": "as_of", "symbol": "ticker", "stock": "ticker"}
+                for k in list(args):
+                    if k in props:
+                        continue
+                    tgt = syn.get(k)
+                    if tgt and tgt in props and tgt not in args:
+                        args[tgt] = args.pop(k)
+                    else:
+                        args.pop(k)
+                    stats["args_repaired"] = stats.get("args_repaired", 0) + 1
             stats["tool_calls"] += 1
             err = None if name in by_name else f"unknown tool '{name}'"
             err = err or _validate_args(by_name[name], args)
