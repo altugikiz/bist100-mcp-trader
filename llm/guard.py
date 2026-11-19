@@ -121,8 +121,11 @@ def check_and_repair(question, answer, trace):
         viol.append("scope")
         add.append(" | ".join(scope) + ".")
 
+    # ignore the label where the answer itself negates it or where an earlier correction already mentions it
+    up_lbl = re.sub(r"(CORRECTION|DÜZELTME):[^\n]*", "", up)
+    up_lbl = re.sub(r"(NOT MEET|NOT QUALIFY|NOT LABELED|NOT BE LABELED|NOT SUPPORT|NO EVIDENCE)[^.\n]{0,120}", "", up_lbl)
     cand = [l for l in ("POTENTIAL_CATCH_UP_CANDIDATE", "TECHNICAL_REVERSAL_CANDIDATE", "FUNDAMENTAL_IMPROVEMENT_CANDIDATE")
-            if l in up and l != final_action]
+            if l in up_lbl and l != final_action]
     if cand and not final_action:
         viol.append("unsupported_label")
         add.append(f"Correction: the label {cand[0]} above is not supported by tool output (the harness produced no such action); "

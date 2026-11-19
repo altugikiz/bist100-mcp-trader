@@ -1294,12 +1294,24 @@ def detect_reversal_events(
             "supertrend_bearish_and_below_ichimoku_cloud": _grp((log_type["supertrend_state"] == "bearish") & (log_type["ichimoku_state"] == "below_cloud")),
         }
 
-    recent = log.tail(max(1, int(last_n)))
-    keep   = ["event_date", "event_type", "close_price", "rsi_state", "supertrend_state",
-              "kama_slope", "ichimoku_state", "volume_regime",
-              "forward_return_1d", "forward_return_3d", "forward_return_5d", "forward_return_10d"]
+    recent = log.tail(max(1, min(int(last_n), 3)))
+    keep   = ["event_date", "event_type", "close_price", "forward_return_5d"]
+    lines = []
+    if comparisons:
+        names = {"all_events_of_this_type": "ALL events of this type",
+                 "rsi_trough_zone_and_high_volume": "RSI trough zone + high volume",
+                 "supertrend_bearish_and_below_ichimoku_cloud": "bearish Supertrend + below Ichimoku cloud"}
+        for k, g in comparisons.items():
+            if g.get("n"):
+                pr = g.get("positive_rate_5d")
+                lines.append(f"{names[k]}: {g['n']} events; {g.get('n_positive_5d', 0)} rose within 5 days"
+                             + (f" ({pr*100:.1f}%)" if pr is not None else "")
+                             + f"; avg 5d forward return {g['avg_fwd_5d']*100:.2f}%" if g.get("avg_fwd_5d") is not None else "")
+            else:
+                lines.append(f"{names[k]}: 0 events")
     return _sanitise({
         "ticker":        ticker,
+        "summary_lines": lines or None,
         "as_of":         str(snap.date()),
         "event_types":   all_types if not filters else None,
         "filters":       filters,
