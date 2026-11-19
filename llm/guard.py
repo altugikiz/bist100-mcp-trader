@@ -114,7 +114,7 @@ def check_and_repair(question, answer, trace):
         iso = "-".join(reversed(m.group(1).split(".")))
         if m.group(1) not in answer and iso not in answer:
             scope.append(f"Analiz tarihi: {m.group(1)}" if tr else f"Analysis date: {m.group(1)}")
-    q = re.search(r'"latest_disclosed_quarter"\s*:\s*"?(\d{4}Q\d)', tool_text)
+    q = re.search(r'(?:latest_disclosed_quarter|Latest quarter disclosed[^:]*:)\W{0,10}(\d{4}Q\d)', tool_text)
     if q and q.group(1) not in answer:
         scope.append(f"Son açıklanan çeyrek: {q.group(1)}" if tr else f"Latest disclosed quarter: {q.group(1)}")
     if scope:
