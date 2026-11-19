@@ -427,10 +427,28 @@ def fundamental_change(ticker: str, as_of: str = "", horizons=(1, 5, 20)) -> dic
 # 4. Macro variable vs stock return
 # ---------------------------------------------------------------------------
 
+_MACRO_ALIASES = {
+    "usdtry": "usdtry", "usd/try": "usdtry", "usd-try": "usdtry", "usd_try": "usdtry", "usd": "usdtry",
+    "dolar": "usdtry", "dollar": "usdtry", "dolar/tl": "usdtry", "usdtl": "usdtry", "usd/tl": "usdtry",
+    "eurtry": "eurtry", "eur/try": "eurtry", "eur-try": "eurtry", "eur_try": "eurtry", "eur": "eurtry",
+    "euro": "eurtry", "eur/tl": "eurtry",
+    "tcmb_rate": "tcmb_rate", "policy rate": "tcmb_rate", "policy_rate": "tcmb_rate", "faiz": "tcmb_rate",
+    "interest rate": "tcmb_rate", "tcmb": "tcmb_rate", "politika faizi": "tcmb_rate", "rate": "tcmb_rate",
+    "tufe_yoy": "tufe_yoy", "tufe": "tufe_yoy", "cpi": "tufe_yoy", "inflation": "tufe_yoy", "enflasyon": "tufe_yoy",
+    "fed_rate": "fed_rate", "fed": "fed_rate", "fed funds": "fed_rate",
+}
+
+
+def _normalize_macro_variable(v: str) -> str:
+    """Map free-form macro names (USD/TRY, inflation, ...) to canonical keys."""
+    key = (v or "").strip().lower()
+    return _MACRO_ALIASES.get(key, key)
+
+
 def macro_stock_relationship(ticker: str, macro_variable: str = "usdtry", start_date: str = "",
                              end_date: str = "", frequency: str = "weekly") -> dict:
     """Correlation between stock returns and changes in a macro series, with a first-half / second-half check."""
-    var = macro_variable.lower()
+    var = _normalize_macro_variable(macro_variable)
     if var not in ("usdtry", "eurtry", "tcmb_rate", "tufe_yoy", "fed_rate"):
         return {"error": "macro_variable must be one of usdtry, eurtry, tcmb_rate, tufe_yoy, fed_rate."}
     ts, warn = resolve_as_of(end_date)
