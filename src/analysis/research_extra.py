@@ -8,6 +8,7 @@ incomplete forward windows, overlapping signals, proxy disclosure dates).
 import os
 import sys
 
+import re
 import numpy as np
 import pandas as pd
 from scipy import stats
@@ -300,6 +301,100 @@ def weekday_sequence_test(ticker: str, first_day: str = "Monday", first_directio
     }
 
 
+def _parse_legs(text: str):
+    """Parse 'Mon down, Tue down' / 'Monday-, Tuesday-' / 'Perşembe yükseliş' into [(weekday_index, 'negative'|'positive')]."""
+    legs = []
+    for tok in re.split(r"[,;/]|\band\b|\bve\b|\bthen\b|\bardından\b", str(text or "").lower()):
+        tok = tok.strip()
+        if not tok:
+            continue
+        day = next((v for k, v in sorted(_DAYS.items(), key=lambda kv: -len(kv[0])) if k in tok), None)
+        direction = "negative" if (tok.endswith("-") or any(w in tok for w in _NEG)) else \
+                    "positive" if (tok.endswith("+") or any(w in tok for w in _POS)) else None
+        if day is None or direction is None:
+            return None
+        legs.append((day, direction))
+    return legs or None
+
+
+def weekday_multiday_pattern_test(ticker: str, condition: str = "Mon down, Tue down, Wed down",
+                                  outcome: str = "Thu up, Fri up", as_of: str = "", start: str = "",
+                                  train_end: str = "", cost_bps: float = 0.0, n_hypotheses: int = 1) -> dict:
+    """
+    Multi-day weekly pattern: in each calendar week, how often do all `outcome` days move as stated
+    given that all `condition` days moved as stated, versus the unconditional frequency of the outcome.
+    In-sample / out-of-sample split at `train_end` (default 70% of weeks), cost-adjusted hold return
+    from the last condition day's close to the last outcome day's close.
+    """
+    cl, ol = _parse_legs(condition), _parse_legs(outcome)
+    if not cl or not ol:
+        return {"error": "condition and outcome must list weekday + direction, e.g. condition='Mon down, Tue down, Wed down', "
+                         "outcome='Thu up, Fri up'."}
+    if max(d for d, _ in cl) >= min(d for d, _ in ol):
+        return {"error": "every outcome day must be later in the week than every condition day."}
+    names = ["Mon", "Tue", "Wed", "Thu", "Fri"]
+    fmt = lambda legs: ", ".join(f"{names[d]} {'down' if x == 'negative' else 'up'}" for d, x in legs)
+    df = load_ohlcv(ticker, as_of)
+    df = df.loc[df.index >= pd.Timestamp(start or DEFAULT_START)].copy()
+    df["ret"] = df["Close"].pct_change()
+    df["wk"] = df.index.to_period("W-SUN")
+    need = sorted({d for d, _ in cl + ol})
+    last_c, last_o = max(d for d, _ in cl), max(d for d, _ in ol)
+    rows = []
+    for wk, g in df.groupby("wk"):
+        sel = {d: g[g.index.dayofweek == d] for d in need}
+        if any(len(v) != 1 or np.isnan(v["ret"].iloc[0]) for v in sel.values()):
+            continue
+        ok_c = all((sel[d]["ret"].iloc[0] < 0) if x == "negative" else (sel[d]["ret"].iloc[0] > 0) for d, x in cl)
+        ok_o = all((sel[d]["ret"].iloc[0] < 0) if x == "negative" else (sel[d]["ret"].iloc[0] > 0) for d, x in ol)
+        rows.append({"week": sel[need[0]].index[0], "cond": ok_c, "outc": ok_o,
+                     "hold": sel[last_o]["Close"].iloc[0] / sel[last_c]["Close"].iloc[0] - 1})
+    w = pd.DataFrame(rows)
+    if len(w) < 20:
+        return {"error": f"Only {len(w)} complete weeks available for {ticker}."}
+    cut = pd.Timestamp(train_end) if train_end else w["week"].iloc[int(len(w) * 0.7)]
+    cost = cost_bps / 1e4
+
+    def seg(mask):
+        sub = w[mask]
+        n, nc = len(sub), int(sub["cond"].sum())
+        res = {"weeks": int(n), "weeks_with_condition": nc, "weeks_with_full_pattern": int((sub["cond"] & sub["outc"]).sum())}
+        if n and nc:
+            k = int(sub.loc[sub["cond"], "outc"].sum())
+            p_unc = float(sub["outc"].mean())
+            h = sub.loc[sub["cond"], "hold"]
+            res.update({"p_outcome_given_condition": k / nc, "p_outcome_unconditional": p_unc,
+                        "lift": (k / nc) / p_unc if p_unc else None,
+                        "binomial_p": float(stats.binomtest(k, nc, p_unc).pvalue) if 0 < p_unc < 1 else None,
+                        "mean_hold_return": float(h.mean()), "median_hold_return": float(h.median()),
+                        "mean_hold_return_net_of_cost": float(h.mean() - cost),
+                        "low_sample_warning": bool(nc < 15 or k < 5)})
+        return res
+    full, ins, oos = seg(pd.Series(True, index=w.index)), seg(w["week"] <= cut), seg(w["week"] > cut)
+    stable = bool(ins.get("p_outcome_given_condition") is not None and oos.get("p_outcome_given_condition") is not None
+                  and ins["p_outcome_given_condition"] > ins["p_outcome_unconditional"]
+                  and oos["p_outcome_given_condition"] > oos["p_outcome_unconditional"]
+                  and not oos.get("low_sample_warning", True))
+    alpha = 0.05 / max(1, n_hypotheses)
+    def pct(x): return "n/a" if x is None else f"{x*100:.1f}%"
+    summ = (f"Pattern [{fmt(cl)}] then [{fmt(ol)}]: full pattern occurred in {full['weeks_with_full_pattern']} of {full['weeks']} weeks "
+            f"(condition met in {full['weeks_with_condition']}). "
+            f"In-sample (to {cut.date()}): P(outcome|condition)={pct(ins.get('p_outcome_given_condition'))} vs {pct(ins.get('p_outcome_unconditional'))} unconditional, "
+            f"n={ins['weeks_with_condition']}. Out-of-sample: P={pct(oos.get('p_outcome_given_condition'))} vs {pct(oos.get('p_outcome_unconditional'))}, "
+            f"n={oos['weeks_with_condition']}. "
+            + ("Same direction out of sample, but small samples: weak evidence only." if stable else
+               "NOT stable out of sample (no reliable pattern), or too few occurrences to say."))
+    return {"ticker": ticker.upper(), "as_of": str(resolve_as_of(as_of)[0].date()), "condition": fmt(cl), "outcome": fmt(ol),
+            "train_end": str(cut.date()), "full_sample": full, "in_sample": ins, "out_of_sample": oos,
+            "evidence_summary": summ, "bonferroni_alpha": alpha,
+            "significant_full_sample_after_correction": bool(full.get("binomial_p") is not None and full["binomial_p"] < alpha),
+            "stable_out_of_sample": stable,
+            "warnings": ["Long weekday patterns occur rarely, so samples are small; weekday patterns are often spurious.",
+                         f"Multiple-testing alpha uses n_hypotheses={n_hypotheses}.",
+                         "Hold return = last condition day's close to last outcome day's close." +
+                         ("" if cost_bps else " No transaction costs applied (cost_bps=0).")]}
+
+
 # ---------------------------------------------------------------------------
 # 3. Quarterly fundamental change + post-disclosure reaction
 # ---------------------------------------------------------------------------
@@ -394,6 +489,46 @@ def fundamental_change(ticker: str, as_of: str = "", horizons=(1, 5, 20)) -> dic
     def pc(x):
         return "n/a" if x is None else f"{x*100:+.1f}%"
 
+    # per-quarter table: margin, leverage, improvement flag and the three abnormal returns
+    table, prev_margin = [], None
+    for i, (p, r) in enumerate(avail.iterrows()):
+        m = ebitda_margin(r)
+        t = ttm.iloc[i] if ttm is not None else np.nan
+        nd = float(r["net_debt"] / t) if ttm is not None and not pd.isna(t) and t and not pd.isna(r.get("net_debt")) else None
+        h_rec = history[i]
+        yp = f"{int(p[:4]) - 1}{p[4:]}"
+        ym = ebitda_margin(avail.loc[yp]) if yp in avail.index else None
+        row = {"period": p, "disclosure_date_estimate": h_rec["disclosure_date_estimate"],
+               "ebitda_margin": m, "ebitda_margin_change_vs_prev_quarter_pp": (None if m is None or prev_margin is None else float((m - prev_margin) * 100)),
+               "ebitda_margin_yoy_change_pp": (None if m is None or ym is None else float((m - ym) * 100)),
+               "net_debt_to_ttm_ebitda": nd, "net_profit_yoy": h_rec.get("net_profit_yoy"),
+               "improved": (None if m is None or prev_margin is None else bool(m > prev_margin))}
+        for h in horizons:
+            row[f"abnormal_vs_xu100_{h}d"] = h_rec.get(f"abnormal_vs_xu100_{h}d")
+            row[f"abnormal_vs_sector_{h}d"] = h_rec.get(f"abnormal_vs_sector_{h}d")
+        table.append(row)
+        prev_margin = m if m is not None else prev_margin
+    qlines = []
+    for row in table:
+        mm = "n/a" if row["ebitda_margin"] is None else f"{row['ebitda_margin']*100:.1f}%"
+        nd_s = "n/a" if row["net_debt_to_ttm_ebitda"] is None else f"{row['net_debt_to_ttm_ebitda']:.2f}x"
+        rets = ", ".join(f"{h}d {pc(row[f'abnormal_vs_xu100_{h}d'])} vs XU100 / {pc(row[f'abnormal_vs_sector_{h}d'])} vs sector"
+                         for h in horizons)
+        flag = {True: "margin improved", False: "margin did not improve", None: "no prior quarter"}[row["improved"]]
+        qlines.append(f"{row['period']} (disclosed ~{row['disclosure_date_estimate']}): EBITDA margin {mm}, net debt/TTM EBITDA {nd_s}, {flag}; abnormal returns {rets}.")
+    imp_assoc = {}
+    td = pd.DataFrame(table)
+    for h in horizons:
+        col = f"abnormal_vs_xu100_{h}d"
+        sub = td.dropna(subset=["improved", col])
+        a_, b_ = sub[sub["improved"] == True], sub[sub["improved"] == False]
+        imp_assoc[f"{h}d"] = {"n_improved": int(len(a_)), "mean_abnormal_improved": float(a_[col].mean()) if len(a_) else None,
+                              "n_not_improved": int(len(b_)), "mean_abnormal_not_improved": float(b_[col].mean()) if len(b_) else None}
+    imp_line = ("Improved-margin quarters vs others (mean abnormal return vs XU100; only quarters with a complete window): "
+                + "; ".join(f"{k}: {pc(v['mean_abnormal_improved'])} (n={v['n_improved']}) vs {pc(v['mean_abnormal_not_improved'])} (n={v['n_not_improved']})"
+                            for k, v in imp_assoc.items())
+                + f". Samples are tiny; this is association, not causation. Benchmark for 'vs sector' is {btype} (identical to XU100 when the stock has no sector peers).")
+
     lines = [f"Latest quarter disclosed by {ts.date()}: {cp} (estimated disclosure {latest_reaction['disclosure_date_estimate']}).",
              f"Revenue vs same quarter last year: {pc(changes['revenue_yoy'])}; vs previous quarter: {pc(changes['revenue_qoq'])}.",
              f"Net profit vs same quarter last year: {pc(changes['net_profit_yoy'])}; vs previous quarter: {pc(changes['net_profit_qoq'])}."]
@@ -412,6 +547,7 @@ def fundamental_change(ticker: str, as_of: str = "", horizons=(1, 5, 20)) -> dic
     return {
         "ticker": ticker, "as_of": str(ts.date()), "latest_disclosed_quarter": cp, "summary": lines,
         "benchmark_type": btype, "changes": changes, "reaction_to_latest": latest_reaction,
+        "quarterly_history": qlines, "improvement_vs_reaction": imp_line, "quarterly_table": table,
         "historical_association": assoc, "quarters_excluded_not_yet_disclosed": excluded,
         "warnings": ([warn] if warn else []) + [
             "Disclosure dates are proxies (quarter end + 30 days for financials, 45 for others), not real KAP timestamps.",

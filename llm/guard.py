@@ -121,6 +121,22 @@ def check_and_repair(question, answer, trace):
         viol.append("scope")
         add.append(" | ".join(scope) + ".")
 
+    cand = [l for l in ("POTENTIAL_CATCH_UP_CANDIDATE", "TECHNICAL_REVERSAL_CANDIDATE", "FUNDAMENTAL_IMPROVEMENT_CANDIDATE")
+            if l in up and l != final_action]
+    if cand and not final_action:
+        viol.append("unsupported_label")
+        add.append(f"Correction: the label {cand[0]} above is not supported by tool output (the harness produced no such action); "
+                   "the research label is **INVESTIGATE**." if not tr else
+                   f"Düzeltme: yukarıdaki {cand[0]} etiketi araç çıktısıyla desteklenmiyor (harness böyle bir aksiyon üretmedi); "
+                   "araştırma etiketi **INVESTIGATE**.")
+
+    if re.search(r"alay[ıi]m m[ıi]|hedef fiyat|target price|should i (buy|sell)|buy or sell|\bBUY\b.*\bSELL\b", question, re.I):
+        viol.append("advice_request")
+        add.append("No buy/sell recommendation and no target price can be given; the evidence above is historical and educational. "
+                   "Claims such as 'will certainly rise' are not verified by the data." if not tr else
+                   "Al/sat önerisi ve hedef fiyat verilemez; yukarıdaki kanıt tarihsel ve eğitim amaçlıdır. "
+                   "'Kesin yükselir' gibi iddialar veriyle doğrulanmış değildir.")
+
     if not trace:
         add.append("Bu soru araç kanıtı olmadan yanıtlanamaz; al/sat kararı verilmez." if tr else
                    "No tool evidence was gathered, so no buy/sell call can be made; this is not an investment recommendation.")

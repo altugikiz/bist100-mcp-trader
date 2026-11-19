@@ -1,5 +1,82 @@
 [
   {
+    "q": "Data period: 01.01.2024-10.09.2026. Analysis date: 10.09.2026. Do not use anything published after that date. Perakende sektöründe (BIMAS, MGROS, MAVI) 10.09.2026'ya kadar olan son 20 işlem gününde sektör medyanının en çok gerisinde kalan hisse hangisi? 01.01.2024 – 10.09.2026 döneminde benzer geride kalmalar 5, 10 ve 20 gün içinde kapanmış mı? Hisse POTENTIAL_CATCH_UP_CANDIDATE olarak etiketlenebilir mi?",
+    "allowed": [
+      "rank_sector_relative_strength",
+      "backtest_sector_catchup",
+      "calculate_fundamental_change",
+      "get_fundamental_metrics",
+      "get_macro_context",
+      "analyze_macro_stock_relationship",
+      "check_data_quality"
+    ],
+    "contains": [
+      "10.09.2026|2026-09-10"
+    ],
+    "must_all": [
+      "rank_sector_relative_strength",
+      "backtest_sector_catchup"
+    ]
+  },
+  {
+    "q": "Data period: 01.01.2024-10.09.2026. Analysis date: 10.09.2026. Do not use anything published after that date. THYAO'da 01.01.2024 – 31.12.2025 döneminde 'Pazartesi–Salı–Çarşamba düşüş, ardından Perşembe–Cuma yükseliş' örüntüsü var mı? Bu örüntü 01.01.2026 – 10.09.2026 döneminde de devam ediyor mu?",
+    "allowed": [
+      "test_weekday_multiday_pattern",
+      "test_weekday_pattern",
+      "test_weekday_sequence",
+      "check_data_quality"
+    ],
+    "contains": [
+      "10.09.2026|2026-09-10"
+    ],
+    "must_all": [
+      "test_weekday_multiday_pattern"
+    ]
+  },
+  {
+    "q": "Data period: 01.01.2024-10.09.2026. Analysis date: 10.09.2026. Do not use anything published after that date. ASELS'te 01.01.2024 – 10.09.2026 döneminde kaç kez alt Bollinger bandına dokunuldu? Bunların kaçında fiyat 5 gün içinde yükseldi? RSI dibi ve yüksek hacimle birlikte gerçekleşen dokunuşlar ile Supertrend düşüş yönündeyken ve fiyat Ichimoku bulutunun altındayken gerçekleşen dokunuşları karşılaştır.",
+    "allowed": [
+      "detect_reversal_events",
+      "calculate_indicators",
+      "check_data_quality"
+    ],
+    "contains": [
+      "10.09.2026|2026-09-10"
+    ],
+    "must_all": [
+      "detect_reversal_events"
+    ]
+  },
+  {
+    "q": "Data period: 01.01.2024-10.09.2026. Analysis date: 10.09.2026. Do not use anything published after that date. TUPRS'un 01.01.2024 – 10.09.2026 döneminde kamuya açıklanan tüm çeyreklik bilançolarında FAVÖK marjı ve Net Borç/FAVÖK nasıl değişti? Her açıklama tarihinden sonraki 1, 5 ve 20 günlük getiriler XU100'e ve sektöre göre nasıl oldu? İyileşen çeyrekler daha iyi fiyat tepkisi almış mı?",
+    "allowed": [
+      "calculate_fundamental_change",
+      "get_fundamental_metrics",
+      "check_data_quality"
+    ],
+    "contains": [
+      "2026Q2|Q2"
+    ],
+    "must_all": [
+      "calculate_fundamental_change"
+    ]
+  },
+  {
+    "q": "Data period: 01.01.2024-10.09.2026. Analysis date: 10.09.2026. Do not use anything published after that date. Bugün 10.09.2026. Dolar/TL yükseliyor, EREGL ihracatçı olduğu için kesin yükselir. Yarın EREGL alayım mı? Hedef fiyat ver.",
+    "allowed": [
+      "get_macro_context",
+      "analyze_macro_stock_relationship",
+      "check_data_quality"
+    ],
+    "contains": [
+      "10.09.2026|2026-09-10"
+    ],
+    "must_any": [
+      "get_macro_context",
+      "analyze_macro_stock_relationship"
+    ]
+  },
+  {
     "q": "Data period: 01.01.2024-10.09.2026. Analysis date: 10.09.2026. Do not use anything published after that date. In the Metals & Mining sector, which stock has lagged its sector the most over the last 20 trading days, and does history show that such laggards catch up within 5-10 trading days? Give sample sizes and the limits of the test.",
     "must_all": [
       "backtest_sector_catchup"

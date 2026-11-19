@@ -1007,6 +1007,34 @@ def _summarise_events(log: pd.DataFrame, snap: pd.Timestamp, baseline: dict | No
     return {etype: _summarise_group(grp, snap, baseline) for etype, grp in log.groupby("event_type")}
 
 
+_STATE_ALIASES = {
+    "rsi_state": {"trough_zone": ("trough", "oversold", "over_sold", "low", "dip", "bottom", "aşırı satım", "dip"),
+                  "peak_zone": ("peak", "overbought", "over_bought", "high", "top", "aşırı alım"),
+                  "neutral": ("neutral", "normal", "nötr")},
+    "supertrend_state": {"bearish": ("bear", "down", "fall", "negative", "düşüş", "short", "sell"),
+                         "bullish": ("bull", "up", "rise", "positive", "yükseliş", "long", "buy")},
+    "ichimoku_state": {"below_cloud": ("below", "under", "altında", "alt"),
+                       "above_cloud": ("above", "over", "üstünde", "üst"),
+                       "in_cloud": ("in_cloud", "inside", "within", "içinde")},
+    "volume_regime": {"high": ("high", "heavy", "elevated", "above", "yüksek", "spike"),
+                      "normal": ("normal", "low", "average", "düşük", "ortalama")},
+}
+
+
+def _norm_state(col: str, value: str) -> str:
+    """Map free-form filter values (e.g. 'overbought', 'down') to the canonical values used in the event log."""
+    v = str(value or "").strip().lower().replace(" ", "_").replace("-", "_")
+    if not v:
+        return ""
+    table = _STATE_ALIASES[col]
+    if v in table:
+        return v
+    for canon, words in table.items():
+        if any(w.replace(" ", "_") in v for w in words):
+            return canon
+    return v
+
+
 def _thin_events(log: pd.DataFrame, min_gap_days: int) -> pd.DataFrame:
     """Keep an event only if it is at least `min_gap_days` calendar days after the previous kept event."""
     if log.empty or min_gap_days <= 0:
@@ -1174,7 +1202,8 @@ def detect_reversal_events(
 
     Returns:
         {"ticker", "as_of", "event_types", "filters", "statistics": {type: {...}},
-         "recent_events": [...], "warnings": [...]}
+         "standard_comparisons" (when event_type is given without filters: all events vs RSI trough + high
+         volume vs bearish Supertrend + below Ichimoku cloud), "recent_events": [...], "warnings": [...]}
     """
     ticker = ticker.upper()
     df_raw = _load_price_df(ticker, as_of)
@@ -1186,7 +1215,12 @@ def detect_reversal_events(
 
     all_types = sorted(log["event_type"].unique().tolist())
     notes = []
+    rsi_state, supertrend_state = _norm_state("rsi_state", rsi_state), _norm_state("supertrend_state", supertrend_state)
+    ichimoku_state, volume_regime = _norm_state("ichimoku_state", ichimoku_state), _norm_state("volume_regime", volume_regime)
     et = event_type.strip().lower().replace(" ", "_").replace("-", "_") if event_type else ""
+    if et and et not in all_types and ("bollinger" in et or "band" in et or "bant" in et):
+        et = "upper_band_touch" if ("upper" in et or "üst" in et) else "middle_band_test" if ("middle" in et or "orta" in et) else "lower_band_touch"
+        notes.append(f"event_type '{event_type}' was read as '{et}'.")
     if et and et not in all_types:
         # tolerate loose names such as 'RSI', 'oversold', 'rsi_below_30', 'supertrend'
         if "rsi" in et or "oversold" in et or "sold" in et:
@@ -1246,6 +1280,17 @@ def detect_reversal_events(
                   + ("above the baseline (research evidence only, events overlap)." if better else
                      "NOT clearly above the baseline or the sample is small: no evidence of a reversal edge."))
 
+    comparisons = None
+    if event_type and not filters and len(log):
+        def _grp(mask):
+            sub = log[mask]
+            return _summarise_group(sub, snap, baseline) if len(sub) else {"n": 0}
+        comparisons = {
+            "all_events": _summarise_group(log, snap, baseline),
+            "rsi_trough_zone_and_high_volume": _grp((log["rsi_state"] == "trough_zone") & (log["volume_regime"] == "high")),
+            "supertrend_bearish_and_below_ichimoku_cloud": _grp((log["supertrend_state"] == "bearish") & (log["ichimoku_state"] == "below_cloud")),
+        }
+
     recent = log.tail(max(1, int(last_n)))
     keep   = ["event_date", "event_type", "close_price", "rsi_state", "supertrend_state",
               "kama_slope", "ichimoku_state", "volume_regime",
@@ -1258,6 +1303,7 @@ def detect_reversal_events(
         "n_matching_events": int(len(log)),
         "evidence_summary": ev_sum,
         "statistics":    stats_out,
+        "standard_comparisons": comparisons,
         "recent_events": recent[[c for c in keep if c in recent.columns]].to_dict("records"),
         "warnings":      warnings,
     })
@@ -1498,6 +1544,36 @@ def test_weekday_sequence(
     """
     return _sanitise(_rx.weekday_sequence_test(ticker, first_day, first_direction, second_day, second_direction,
                                                as_of, start, train_end, cost_bps, n_hypotheses))
+
+
+@mcp.tool()
+def test_weekday_multiday_pattern(
+    ticker: str,
+    condition: str = "Mon down, Tue down, Wed down",
+    outcome: str = "Thu up, Fri up",
+    as_of: str = "",
+    start: str = "",
+    train_end: str = "",
+    cost_bps: float = 0.0,
+    n_hypotheses: int = 1,
+) -> dict:
+    """
+    Test a pattern over SEVERAL weekdays, e.g. Monday, Tuesday and Wednesday all fall and then Thursday
+    and Friday both rise. Gives occurrences, P(outcome | condition) vs unconditional, in-sample vs
+    out-of-sample results, mean and median hold return and costs. Use for patterns of 3 or more days.
+
+    Args:
+        ticker:        Short BIST ticker, e.g. 'THYAO'.
+        condition:     Weekday moves that must happen first, e.g. 'Mon down, Tue down, Wed down'.
+        outcome:       Later weekday moves to test, e.g. 'Thu up, Fri up'.
+        as_of:         Analysis date (never later than 2026-09-10).
+        start:         Optional first date (default 2024-01-01).
+        train_end:     Last in-sample date, e.g. '2025-12-31'; later weeks are out-of-sample.
+        cost_bps:      Optional round-trip transaction cost in basis points.
+        n_hypotheses:  Number of patterns scanned (Bonferroni alpha = 0.05 / n).
+    """
+    return _sanitise(_rx.weekday_multiday_pattern_test(ticker, condition, outcome, as_of, start, train_end,
+                                                       cost_bps, n_hypotheses))
 
 
 @mcp.tool()
