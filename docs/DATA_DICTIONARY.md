@@ -13,7 +13,7 @@ system, per the project brief's Section 36 requirement. It is organized by pipel
 | `Open`, `High`, `Low`, `Close` | float | Daily OHLC price (TRY) |
 | `Volume` | int | Shares traded |
 
-Source: Yahoo Finance (`yfinance`). Coverage: 2023-01-02 to 2025-12-31, 30 tickers + XU100 benchmark.
+Source: Yahoo Finance (`yfinance`). Coverage: 2023-01-02 to 2026-09-10 (analysis date 2026-09-10), 30 tickers + XU100 benchmark.
 
 ## 2. Technical Indicators (`src/analysis/indicators.py`)
 

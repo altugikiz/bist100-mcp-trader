@@ -75,7 +75,7 @@ EXPECTED_MAIN = (
     [{"must_any": ["run_full_analysis"], "allowed": _FLOW}] * 4
     + [{"must_any": ["run_full_analysis", "check_data_quality"], "allowed": _FLOW}]
     + [{"must_any": ["rank_sector_relative_strength"], "allowed": ["rank_sector_relative_strength"]}] * 3
-    + [{"must_any": ["test_weekday_pattern"], "allowed": ["test_weekday_pattern"]}] * 3
+    + [{"must_any": ["test_weekday_pattern", "test_weekday_sequence"], "allowed": ["test_weekday_pattern", "test_weekday_sequence"]}] * 3
     + [{"must_any": ["detect_reversal_events"], "allowed": ["detect_reversal_events"]}] * 3
     + [{"must_any": ["get_macro_context"], "allowed": ["get_macro_context"]}] * 2
     + [{"must_any": ["get_news_events"], "allowed": ["get_news_events"]}]
