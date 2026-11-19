@@ -1215,6 +1215,17 @@ def detect_reversal_events(
     else:
         stats_out = _summarise_events(log, snap, baseline)
 
+    focus = stats_out.get("pooled_matching_events") or (stats_out.get(event_type) if event_type else None)
+    ev_sum = None
+    if focus and focus.get("n_complete_5d"):
+        better = (focus["avg_fwd_5d"] > focus["baseline_avg_fwd_5d_all_days"]
+                  and focus["positive_rate_5d"] > focus["baseline_positive_rate_5d_all_days"] and focus["n_complete_5d"] >= 10)
+        ev_sum = (f"5d after matching events: average {focus['avg_fwd_5d']*100:.2f}% and positive rate "
+                  f"{focus['positive_rate_5d']*100:.1f}% (n={focus['n_complete_5d']}) vs all-days baseline "
+                  f"{focus['baseline_avg_fwd_5d_all_days']*100:.2f}% and {focus['baseline_positive_rate_5d_all_days']*100:.1f}% -> "
+                  + ("above the baseline (research evidence only, events overlap)." if better else
+                     "NOT clearly above the baseline or the sample is small: no evidence of a reversal edge."))
+
     recent = log.tail(max(1, int(last_n)))
     keep   = ["event_date", "event_type", "close_price", "rsi_state", "supertrend_state",
               "kama_slope", "ichimoku_state", "volume_regime",
@@ -1225,6 +1236,7 @@ def detect_reversal_events(
         "event_types":   all_types if not filters else None,
         "filters":       filters,
         "n_matching_events": int(len(log)),
+        "evidence_summary": ev_sum,
         "statistics":    stats_out,
         "recent_events": recent[[c for c in keep if c in recent.columns]].to_dict("records"),
         "warnings":      warnings,

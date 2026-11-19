@@ -114,6 +114,9 @@ def sector_catchup_backtest(sector_group: str, as_of: str = "", start: str = "20
     compared with the same statistics for non-laggard peers on the same snapshots.
     """
     sector_group = normalize_sector_group(sector_group)
+    if abs(lag_threshold) >= 1:          # a model may pass percent points (-5 or -2.5) instead of a fraction
+        lag_threshold = lag_threshold / 100.0
+    lag_threshold = -abs(lag_threshold) if lag_threshold else -0.05
     members = _group_members(sector_group)
     if not members:
         return {"error": f"Unknown sector_group '{sector_group}'.",
@@ -166,11 +169,24 @@ def sector_catchup_backtest(sector_group: str, as_of: str = "", start: str = "20
                 "low_sample_warning": bool(n < 30),
             })
         out[f"{h}d"] = d
+    summary = []
+    for h, d in out.items():
+        if not d.get("n_signals"):
+            summary.append(f"{h}: no laggard signals at this threshold, so nothing can be concluded.")
+            continue
+        base = d.get("baseline_catchup_rate_non_laggards")
+        p = d.get("binomial_p_vs_baseline")
+        edge = bool(base is not None and d["catchup_rate"] > base and p is not None and p < 0.05 and d["n_signals"] >= 30)
+        summary.append(
+            f"{h}: catch-up rate {d['catchup_rate']*100:.1f}% vs {base*100:.1f}% for non-laggards "
+            f"(n={d['n_signals']}, p={p:.3f}) -> " + ("evidence of a catch-up edge." if edge else
+                                                       "NO evidence that laggards catch up more often than other stocks.")
+            if base is not None and p is not None else f"{h}: baseline not available.")
     incomplete = int(df["laggard"].sum() - len(df[df["laggard"]].dropna(subset=[f"ret_{horizons[-1]}"])))
     return {
         "sector_group": sector_group, "members": members, "as_of": str(ts.date()),
         "period": f"{pd.Timestamp(start).date()} to {ts.date()}", "lag_window_days": lag_window,
-        "lag_threshold": lag_threshold, "n_snapshots": int(len(snaps)), "results": out,
+        "lag_threshold": lag_threshold, "n_snapshots": int(len(snaps)), "evidence_summary": summary, "results": out,
         "laggard_signals_excluded_incomplete_window": incomplete,
         "warnings": ([warn] if warn else []) + [
             "Weekly snapshots with 5-20 day horizons overlap, so signals are not independent "
@@ -251,6 +267,12 @@ def weekday_sequence_test(ticker: str, first_day: str = "Monday", first_directio
         "ticker": ticker.upper(), "as_of": str(resolve_as_of(as_of)[0].date()),
         "pattern": f"{first_day} {first_direction} -> {second_day} {second_direction}",
         "train_end": str(cut.date()), "full_sample": full, "in_sample": ins, "out_of_sample": oos,
+        "evidence_summary": (
+            f"{first_day} {first_direction} -> {second_day} {second_direction}: "
+            + ("stable out of sample." if stable else "NOT stable out of sample (no reliable pattern).")
+            + (f" Full-sample P(outcome|condition)={full['p_outcome_given_condition']*100:.1f}% vs "
+               f"{full['p_outcome_unconditional']*100:.1f}% unconditional (p={full['binomial_p']:.3f}, "
+               f"n={full['weeks_with_condition']} weeks)." if full.get("binomial_p") is not None else "")),
         "bonferroni_alpha": alpha,
         "significant_full_sample_after_correction": bool(full.get("binomial_p") is not None and full["binomial_p"] < alpha),
         "stable_out_of_sample": stable,

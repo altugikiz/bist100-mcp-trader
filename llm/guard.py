@@ -84,7 +84,8 @@ def check_and_repair(question, answer, trace):
                 final_action = m.group(1)
 
     analysed = any(t["tool"] == "get_recommended_action" and t not in failed for t in trace)
-    if failed and not analysed and not rejected:
+    succeeded = [t for t in trace if t not in failed]
+    if failed and not analysed and not rejected and not succeeded:
         # a tool failed and the harness never produced an action: no evidence for a conclusion
         if "ANALYSIS_UNSAFE" not in up:
             viol.append("unsafe_missing")
@@ -97,6 +98,14 @@ def check_and_repair(question, answer, trace):
     elif final_action and final_action not in up:
         viol.append("action_missing")
         add.append(f"Harness action: **{final_action}**." if not tr else f"Harness aksiyonu: **{final_action}**.")
+
+    research = {"backtest_sector_catchup", "test_weekday_sequence", "test_weekday_pattern", "detect_reversal_events",
+                "calculate_fundamental_change", "analyze_macro_stock_relationship", "rank_sector_relative_strength"}
+    if (not final_action and succeeded and any(t["tool"] in research for t in succeeded)
+            and not any(a in up for a in ALLOWED_ACTIONS) and "ANALYSIS_UNSAFE" not in up):
+        viol.append("label_missing")
+        add.append("Research label: **INVESTIGATE** (historical evidence only; no harness action was produced)." if not tr else
+                   "Araştırma etiketi: **INVESTIGATE** (yalnızca tarihsel kanıt; harness aksiyonu üretilmedi).")
 
     if not _DISCLAIMER.search(answer):
         viol.append("disclaimer")
