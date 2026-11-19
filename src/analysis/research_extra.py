@@ -71,7 +71,31 @@ def _benchmark_close(ticker: str, as_of: str = "") -> tuple:
     return _close("XU100", as_of), "xu100_fallback"
 
 
+_SECTOR_ALIASES = {
+    "finans": "Financials", "finansal": "Financials", "bankacılık": "Financials", "banka": "Financials",
+    "perakende": "Retail", "market": "Retail", "metal": "Metals & Mining", "metaller": "Metals & Mining",
+    "madencilik": "Metals & Mining", "demir çelik": "Metals & Mining", "otomotiv": "Automotive",
+    "kimya": "Chemicals", "enerji": "Electric Utilities", "elektrik": "Electric Utilities",
+    "telekom": "Telecommunications", "telekomünikasyon": "Telecommunications",
+    "havacılık": "Transportation-Airlines", "ulaştırma": "Transportation-Airlines", "ulaşım": "Transportation-Airlines",
+    "sağlık": "Healthcare", "çimento": "Cement", "gıda": "Food & Beverage", "yiyecek içecek": "Food & Beverage",
+    "gayrimenkul": "Real Estate & Construction", "inşaat": "Real Estate & Construction",
+    "savunma": "Technology-Defense", "teknoloji": "Technology-Defense", "petrol": "Petroleum-Refining",
+    "rafineri": "Petroleum-Refining", "dayanıklı": "Durables-Machinery", "makine": "Durables-Machinery",
+    "metals": "Metals & Mining", "mining": "Metals & Mining", "banking": "Financials", "banks": "Financials",
+    "airlines": "Transportation-Airlines", "telecom": "Telecommunications", "energy": "Electric Utilities",
+    "defense": "Technology-Defense", "defence": "Technology-Defense", "real estate": "Real Estate & Construction",
+}
+
+
+def normalize_sector_group(name: str) -> str:
+    """Map a Turkish/short sector name (e.g. 'Finans', 'perakende', 'banking') to the universe sector_group."""
+    key = name.strip().lower().replace("sektörü", "").replace("sektör", "").strip()
+    return _SECTOR_ALIASES.get(key, name.strip())
+
+
 def _group_members(sector_group: str) -> list:
+    sector_group = normalize_sector_group(sector_group)
     m = UNIVERSE[UNIVERSE["sector_group"].str.lower() == sector_group.lower()]
     return m["ticker"].tolist()
 
@@ -89,6 +113,7 @@ def sector_catchup_backtest(sector_group: str, as_of: str = "", start: str = "20
     catch-up rate = P(stock return > benchmark return), hit rate = P(stock return > 0),
     compared with the same statistics for non-laggard peers on the same snapshots.
     """
+    sector_group = normalize_sector_group(sector_group)
     members = _group_members(sector_group)
     if not members:
         return {"error": f"Unknown sector_group '{sector_group}'.",

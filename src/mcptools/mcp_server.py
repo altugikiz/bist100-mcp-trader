@@ -1041,6 +1041,7 @@ def rank_sector_relative_strength(
          lag_score_5d, lag_score_10d, lag_score_20d, intra_group_rank}, ...]}
         sorted most-laggard first.  Lag scores are fractions (-0.05 = -5 pp).
     """
+    sector_group = _rx.normalize_sector_group(sector_group)
     snap = pd.Timestamp(date) if date else _default_snap_date()
     rank_df = rank_universe_by_sector(snap, windows=[5, 10, 20])
     if sector_group.strip().lower() in ("all", "any", "*", "all sectors", "tümü", "hepsi"):

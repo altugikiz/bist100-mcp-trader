@@ -132,7 +132,7 @@ if __name__ == "__main__":
         viol_raw = [v for v in viol_raw if v != "numbers"]
         viol_fin = [v for v in viol_fin if v != "numbers"]
         called = [t["tool"] for t in r["trace"]]
-        content_ok = all(k.lower() in r["answer"].lower() for k in spec.get("contains", []))
+        content_ok = all(any(alt.lower() in r["answer"].lower() for alt in k.split("|")) for k in spec.get("contains", []))
         # look-ahead: a date after the analysis date in any tool output or in the answer
         late = re.compile(r"2026-(09-(1[1-9]|2\d|30)|1[0-2]-\d\d)|2027-\d\d-\d\d|2026Q[34]")
         lookahead = bool(late.search(outs)) or bool(late.search(raw))
@@ -142,7 +142,7 @@ if __name__ == "__main__":
             "invalid_calls": r["stats"]["invalid_calls"],
             "numbers_total": tot, "numbers_unsupported": bad, "unsupported_conclusion": unsup, "lookahead": lookahead,
             "violations_raw": "|".join(viol_raw), "violations_guarded": "|".join(viol_fin),
-            "latency_s": round(lat, 1), "answer": r["answer"].replace("\n", " ")[:600],
+            "latency_s": round(lat, 1), "answer": r["answer"].replace("\n", " ")[:1800],
         })
         print(f"{len(rows):2}/{len(qs)} calls={rows[-1]['tool_calls']} invalid={rows[-1]['invalid_calls']} "
               f"unsupported={bad}/{tot} route={'ok' if rows[-1]['routing_ok'] else 'WRONG'} {lat:.0f}s")
