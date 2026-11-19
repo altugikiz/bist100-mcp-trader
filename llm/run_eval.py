@@ -87,9 +87,11 @@ EXPECTED_MAIN = (
 def routing_ok(called: list, spec: dict) -> bool:
     """True when the called tools satisfy the expected routing (see EXPECTED_MAIN)."""
     must = spec.get("must_any", [])
-    if not must:                      # no-tool question: any tool call is over-calling
+    must_all = spec.get("must_all", [])
+    if not must and not must_all:     # no-tool question: any tool call is over-calling
         return not called
-    return any(t in must for t in called) and all(t in spec["allowed"] for t in called)
+    return (any(t in must for t in called) if must else True) and all(t in called for t in must_all) \
+        and all(t in spec["allowed"] for t in called)
 
 
 if __name__ == "__main__":
@@ -98,10 +100,16 @@ if __name__ == "__main__":
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--think", action="store_true")
     ap.add_argument("--routing", action="store_true", help="run the unseen-question routing set (eval_routing.json)")
+    ap.add_argument("--teacher", action="store_true",
+                    help="run the analysis-date (2026-09-10) question set mirroring the 5 sample test question types")
+    ap.add_argument("--repeat", type=int, default=1, help="ask every question N times and report reproducibility")
     a = ap.parse_args()
 
     here = os.path.dirname(__file__)
-    if a.routing:
+    if a.teacher:
+        specs = json.load(open(os.path.join(here, "eval_teacher.json")))
+        qs = [x["q"] for x in specs]
+    elif a.routing:
         specs = json.load(open(os.path.join(here, "eval_routing.json")))
         qs = [x["q"] for x in specs]
     else:
@@ -111,7 +119,7 @@ if __name__ == "__main__":
         qs, specs = qs[: a.limit], specs[: a.limit]
     server = agent.load_server()
     rows = []
-    for q, spec in zip(qs, specs):
+    for q, spec in [(q, sp) for q, sp in zip(qs, specs) for _ in range(max(1, a.repeat))]:
         t0 = time.time()
         r = agent.run_agent(q, a.model, think=a.think, server=server, verbose=False)
         lat = time.time() - t0
@@ -125,11 +133,14 @@ if __name__ == "__main__":
         viol_fin = [v for v in viol_fin if v != "numbers"]
         called = [t["tool"] for t in r["trace"]]
         content_ok = all(k.lower() in r["answer"].lower() for k in spec.get("contains", []))
+        # look-ahead: a date after the analysis date in any tool output or in the answer
+        late = re.compile(r"2026-(09-(1[1-9]|2\d|30)|1[0-2]-\d\d)|2027-\d\d-\d\d|2026Q[34]")
+        lookahead = bool(late.search(outs)) or bool(late.search(raw))
         rows.append({
             "question": q, "tool_calls": r["stats"]["tool_calls"], "tools": " > ".join(called),
             "routing_ok": routing_ok(called, spec), "content_ok": content_ok,
             "invalid_calls": r["stats"]["invalid_calls"],
-            "numbers_total": tot, "numbers_unsupported": bad, "unsupported_conclusion": unsup,
+            "numbers_total": tot, "numbers_unsupported": bad, "unsupported_conclusion": unsup, "lookahead": lookahead,
             "violations_raw": "|".join(viol_raw), "violations_guarded": "|".join(viol_fin),
             "latency_s": round(lat, 1), "answer": r["answer"].replace("\n", " ")[:600],
         })
@@ -149,10 +160,16 @@ if __name__ == "__main__":
         "rule_violation_rate_guarded": round(sum(bool(r["violations_guarded"]) for r in rows) / n, 3),
         "tool_selection_accuracy": round(sum(r["routing_ok"] for r in rows) / n, 3),
         "required_phrase_rate": round(sum(r["content_ok"] for r in rows) / n, 3),
+        "lookahead_rate": round(sum(r["lookahead"] for r in rows) / n, 3),
         "avg_tool_calls": round(calls / n, 2),
         "avg_latency_s": round(sum(r["latency_s"] for r in rows) / n, 1),
     }
-    tag = "_routing" if a.routing else ""
+    if a.repeat > 1:   # reproducibility: identical tool sequence on every repeat of a question
+        k = a.repeat
+        same = sum(len({rows[i + j]["tools"] for j in range(k)}) == 1 for i in range(0, n, k))
+        summary["repeat"] = k
+        summary["tool_sequence_reproducible_rate"] = round(same / (n // k), 3)
+    tag = "_teacher" if a.teacher else ("_routing" if a.routing else "")
     out = os.path.join(_ROOT, "data", "events", f"llm_eval{tag}_{a.model.replace(':', '_')}.csv")
     with open(out, "w", newline="") as f:
         w = csv.DictWriter(f, fieldnames=list(rows[0]))
