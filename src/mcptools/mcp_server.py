@@ -989,6 +989,7 @@ def _summarise_group(grp: pd.DataFrame, snap: pd.Timestamp, baseline: dict | Non
         rec[f"n_complete_{h}d"] = int(len(f))
         rec[f"avg_fwd_{h}d"] = float(f.mean()) if len(f) else None
         rec[f"positive_rate_{h}d"] = float((f > 0).mean()) if len(f) else None
+        rec[f"n_positive_{h}d"] = int((f > 0).sum())
         if h == 5:
             rec["median_fwd_5d"] = float(f.median()) if len(f) else None
             rec["n_excluded_incomplete_5d"] = int(len(grp) - len(f))
@@ -1202,8 +1203,9 @@ def detect_reversal_events(
 
     Returns:
         {"ticker", "as_of", "event_types", "filters", "statistics": {type: {...}},
-         "standard_comparisons" (when event_type is given without filters: all events vs RSI trough + high
-         volume vs bearish Supertrend + below Ichimoku cloud), "recent_events": [...], "warnings": [...]}
+         "standard_comparisons" (whenever event_type is given: ALL events of that type, with n and
+         n_positive_5d, vs RSI trough + high volume vs bearish Supertrend + below Ichimoku cloud; use these
+         for counts, not the filtered "statistics"), "recent_events": [...], "warnings": [...]}
     """
     ticker = ticker.upper()
     df_raw = _load_price_df(ticker, as_of)
@@ -1239,11 +1241,12 @@ def detect_reversal_events(
         log = log[log["event_type"] == event_type]
     filters = {k: v for k, v in {"rsi_state": rsi_state, "volume_regime": volume_regime,
                                  "supertrend_state": supertrend_state, "ichimoku_state": ichimoku_state}.items() if v}
+    start_ts = pd.Timestamp(start or _rx.DEFAULT_START)
+    log = log[pd.to_datetime(log["event_date"]) >= start_ts]
+    log_type = log.sort_values("event_date")          # all events of the type in the period, before state filters
     for col, val in filters.items():
         log = log[log[col] == val]
     log = log.sort_values("event_date")
-    start_ts = pd.Timestamp(start or _rx.DEFAULT_START)
-    log = log[pd.to_datetime(log["event_date"]) >= start_ts]
     n_before_thin = len(log)
     log = _thin_events(log, int(min_gap_days))
 
@@ -1281,14 +1284,14 @@ def detect_reversal_events(
                      "NOT clearly above the baseline or the sample is small: no evidence of a reversal edge."))
 
     comparisons = None
-    if event_type and not filters and len(log):
+    if event_type and len(log_type):
         def _grp(mask):
-            sub = log[mask]
+            sub = log_type[mask]
             return _summarise_group(sub, snap, baseline) if len(sub) else {"n": 0}
         comparisons = {
-            "all_events": _summarise_group(log, snap, baseline),
-            "rsi_trough_zone_and_high_volume": _grp((log["rsi_state"] == "trough_zone") & (log["volume_regime"] == "high")),
-            "supertrend_bearish_and_below_ichimoku_cloud": _grp((log["supertrend_state"] == "bearish") & (log["ichimoku_state"] == "below_cloud")),
+            "all_events_of_this_type": _summarise_group(log_type, snap, baseline),
+            "rsi_trough_zone_and_high_volume": _grp((log_type["rsi_state"] == "trough_zone") & (log_type["volume_regime"] == "high")),
+            "supertrend_bearish_and_below_ichimoku_cloud": _grp((log_type["supertrend_state"] == "bearish") & (log_type["ichimoku_state"] == "below_cloud")),
         }
 
     recent = log.tail(max(1, int(last_n)))
@@ -1581,7 +1584,7 @@ def calculate_fundamental_change(ticker: str, as_of: str = "") -> dict:
     """
     For the latest quarterly result disclosed by the analysis date, compute the
     change in revenue, net profit, EBITDA margin and net debt / TTM EBITDA
-    (YoY and QoQ), then the stock's 1-, 5- and 20-trading-day returns after the
+    (YoY and QoQ), a line per disclosed quarter (quarterly_history: EBITDA margin, net debt/EBITDA, abnormal returns), then the stock's 1-, 5- and 20-trading-day returns after the
     disclosure date, raw and abnormal versus XU100 and versus the sector peer
     median, plus the historical association between profit growth and the
     reaction. Quarters disclosed after the analysis date are excluded and listed;

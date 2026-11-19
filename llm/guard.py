@@ -130,7 +130,8 @@ def check_and_repair(question, answer, trace):
                    f"Düzeltme: yukarıdaki {cand[0]} etiketi araç çıktısıyla desteklenmiyor (harness böyle bir aksiyon üretmedi); "
                    "araştırma etiketi **INVESTIGATE**.")
 
-    if re.search(r"alay[ıi]m m[ıi]|hedef fiyat|target price|should i (buy|sell)|buy or sell|\bBUY\b.*\bSELL\b", question, re.I):
+    if (re.search(r"alay[ıi]m m[ıi]|hedef fiyat|target price|should i (buy|sell)|buy or sell|\bBUY\b.*\bSELL\b", question, re.I)
+            and not re.search(r"no buy/sell recommendation|Al/sat önerisi ve hedef fiyat verilemez", answer)):
         viol.append("advice_request")
         add.append("No buy/sell recommendation and no target price can be given; the evidence above is historical and educational. "
                    "Claims such as 'will certainly rise' are not verified by the data." if not tr else

@@ -302,18 +302,30 @@ def weekday_sequence_test(ticker: str, first_day: str = "Monday", first_directio
 
 
 def _parse_legs(text: str):
-    """Parse 'Mon down, Tue down' / 'Monday-, Tuesday-' / 'Perşembe yükseliş' into [(weekday_index, 'negative'|'positive')]."""
-    legs = []
-    for tok in re.split(r"[,;/]|\band\b|\bve\b|\bthen\b|\bardından\b", str(text or "").lower()):
-        tok = tok.strip()
-        if not tok:
-            continue
-        day = next((v for k, v in sorted(_DAYS.items(), key=lambda kv: -len(kv[0])) if k in tok), None)
-        direction = "negative" if (tok.endswith("-") or any(w in tok for w in _NEG)) else \
-                    "positive" if (tok.endswith("+") or any(w in tok for w in _POS)) else None
-        if day is None or direction is None:
-            return None
-        legs.append((day, direction))
+    """
+    Parse weekday moves such as 'Mon down, Tue down', 'Monday-, Tuesday-', 'Mon–Tue–Wed down' or
+    'Pazartesi–Salı–Çarşamba düşüş' into [(weekday_index, 'negative'|'positive')].
+    A direction word applies to all weekdays listed since the previous direction word.
+    """
+    t = str(text or "").lower().replace("–", " ").replace("—", " ")
+    days = "|".join(sorted((re.escape(k) for k in _DAYS), key=len, reverse=True))
+    dirs = "|".join(sorted((re.escape(k) for k in (_NEG | _POS)), key=len, reverse=True))
+    legs, pending = [], []
+    for m in re.finditer(rf"(?P<day>{days})(?P<sign>[+-])?|(?P<dir>{dirs})|(?P<sg>[+-])", t):
+        if m.group("day"):
+            d = _DAYS[m.group("day")]
+            if m.group("sign"):
+                legs.append((d, "negative" if m.group("sign") == "-" else "positive"))
+            else:
+                pending.append(d)
+        else:
+            word = m.group("dir") or m.group("sg")
+            direction = "negative" if (word in _NEG or word == "-") else "positive"
+            legs += [(d, direction) for d in pending]
+            pending = []
+    if pending:
+        return None
+    legs = sorted(set(legs))
     return legs or None
 
 
@@ -547,8 +559,7 @@ def fundamental_change(ticker: str, as_of: str = "", horizons=(1, 5, 20)) -> dic
     return {
         "ticker": ticker, "as_of": str(ts.date()), "latest_disclosed_quarter": cp, "summary": lines,
         "benchmark_type": btype, "changes": changes, "reaction_to_latest": latest_reaction,
-        "quarterly_history": qlines, "improvement_vs_reaction": imp_line, "quarterly_table": table,
-        "historical_association": assoc, "quarters_excluded_not_yet_disclosed": excluded,
+        "quarterly_history": qlines, "improvement_vs_reaction": imp_line, "quarters_excluded_not_yet_disclosed": excluded,
         "warnings": ([warn] if warn else []) + [
             "Disclosure dates are proxies (quarter end + 30 days for financials, 45 for others), not real KAP timestamps.",
             "Abnormal return = stock return minus benchmark return over the same window; association only, "
