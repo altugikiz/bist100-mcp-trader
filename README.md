@@ -28,7 +28,7 @@ bist100-mcp-trader/
 │   ├── fundamentals/                 # Per-ticker fundamental CSVs
 │   ├── universe_cache/               # Cached daily OHLCV CSVs (one per ticker)
 │   ├── macro/                        # Macro series (TCMB rate, USD/TRY, CPI)
-│   ├── events/                       # Event logs and harness comparison outputs
+│   ├── events/                       # Event logs, harness comparison and LLM eval outputs (derived CSVs = 2025-12-31 snapshot used in the report)
 │   └── decision_log/                 # Per-session JSON audit logs
 ├── llm/
 │   ├── Modelfile                     # bist-analyst: Qwen3 8B + system prompt + parameters
@@ -39,8 +39,7 @@ bist100-mcp-trader/
 │   └── run_ab.py                     # Real A/B runs (no tools vs. tools) for harness versions A and B
 ├── results/
 │   ├── support_resistance.png        # Pivot high/low chart
-│   ├── backtest_equity_curve.png     # Equity curves — original config (BUY=3.5)
-│   ├── final_equity_curve.png        # Equity curves — final config (BUY=3.0)
+│   ├── final_equity_curve.png        # Equity curves — final config (BUY=3.0), report Figure 11.2
 │   └── sensitivity_threshold.png     # BUY threshold sensitivity chart
 ├── src/
 │   ├── config.py                     # Central constants (tickers, paths, thresholds)
@@ -211,7 +210,6 @@ Base 8B (`bist-analyst`) vs fine-tuned 8B on the unseen 14-question set (`llm/ev
 |---|---|
 | [`docs/report/`](docs/report/) | Final term project report (`ASELS_BIST100_Harness_Final_Report.docx`) |
 | [`docs/presentation/`](docs/presentation/) | Project presentation slides (`BIST100_Harness_Presentation.pptx`) |
-| [`docs/mcp_demo/`](docs/mcp_demo/) | Five screenshots (original Claude Desktop test) showing the 11 first-phase MCP tools to analyse ASELS.IS end-to-end (read part1 → part5 in order) |
 | [`docs/DATA_DICTIONARY.md`](docs/DATA_DICTIONARY.md) | Field-level documentation for all data sources, CSV schemas, and module outputs |
 
 ---
