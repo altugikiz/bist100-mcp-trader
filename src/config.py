@@ -29,6 +29,9 @@ SYMBOL = "ASELS.IS"
 START_DATE = "2023-01-01"
 END_DATE   = "2026-01-01"
 
+# Last date the research tools may use (nothing published after it is allowed)
+ANALYSIS_DATE = "2026-09-10"
+
 # Narrower window used for backtesting (requires complete fundamental data)
 BACKTEST_START = "2024-01-01"
 BACKTEST_END   = "2025-12-31"

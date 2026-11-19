@@ -48,12 +48,13 @@ from config import (
     SYMBOL as DEFAULT_TICKER,
     START_DATE as DEFAULT_START,
     END_DATE as DEFAULT_END,
-    BACKTEST_START, BACKTEST_END,
+    BACKTEST_START, BACKTEST_END, ANALYSIS_DATE,
     CURRENT_PRICE, SHARES_OUTSTANDING, SECTOR_AVG_PE,
     BUY_THRESHOLD, SELL_THRESHOLD, TECH_WEIGHT, FUND_WEIGHT,
     FUNDAMENTAL_CSV_PATH as _CSV_PATH,
 )
 from data.universe import UNIVERSE
+from analysis import research_extra as _rx
 from analysis.sector_analysis import rank_universe_by_sector
 from analysis.reversal_events import build_event_log
 from analysis.fundamental_reaction import calculate_quarterly_changes
@@ -68,6 +69,9 @@ from analysis.news_events import get_news_events as _get_news
 from harness.action_space import determine_action
 from harness.decision_log import log_decision, add_human_review, load_decision_log, replay_analysis
 from harness.harness import AnalysisSession, advance_state, record_tool_call
+
+# Default end (exclusive) for price tools: the day after the analysis date, so "latest" means 2026-09-10.
+_TOOL_END = str((pd.Timestamp(ANALYSIS_DATE) + pd.Timedelta(days=1)).date())
 
 _CACHE_DIR = os.path.join(_PROJ_ROOT, "data", "universe_cache")
 _LOG_DIR   = os.path.join(_PROJ_ROOT, "data", "decision_log")
@@ -125,8 +129,8 @@ mcp = FastMCP(
 @mcp.tool()
 def get_stock_history(
     symbol: str = DEFAULT_TICKER,
-    start: str = "2025-01-01",
-    end: str = "2026-01-01",
+    start: str = "2026-01-01",
+    end: str = _TOOL_END,
     last_n: int = 30,
 ) -> dict:
     """
@@ -168,7 +172,7 @@ def get_stock_history(
 def calculate_indicators(
     symbol: str = DEFAULT_TICKER,
     start: str = DEFAULT_START,
-    end: str = DEFAULT_END,
+    end: str = _TOOL_END,
 ) -> dict:
     """
     Compute SMA20, SMA50, RSI14, MACD line, MACD Signal, and MACD Histogram
@@ -221,7 +225,7 @@ def calculate_indicators(
 def find_support_resistance_levels(
     symbol: str = DEFAULT_TICKER,
     start: str = DEFAULT_START,
-    end: str = DEFAULT_END,
+    end: str = _TOOL_END,
     order: int = 5,
     nearest_n: int = 5,
 ) -> dict:
@@ -272,7 +276,7 @@ def find_support_resistance_levels(
 # ---------------------------------------------------------------------------
 
 @mcp.tool()
-def get_fundamental_metrics(period: str = "2025Q4") -> dict:
+def get_fundamental_metrics(period: str = "2026Q2", ticker: str = "ASELS") -> dict:
     """
     Return all fundamental financial metrics for a given quarter from the
     local Fintables CSV (data/fintables_asels.csv).
@@ -281,18 +285,28 @@ def get_fundamental_metrics(period: str = "2025Q4") -> dict:
     debt ratios, cash flow, or any balance-sheet metric for a specific quarter.
 
     Args:
-        period: Quarter string in 'YYYYQn' format, e.g. '2025Q4', '2024Q2'.
-                Available periods: 2024Q1 through 2025Q4.
+        period: Quarter string in 'YYYYQn' format, e.g. '2026Q2', '2025Q4'.
+                Available periods: 2024Q1 through 2026Q2 (later quarters were
+                disclosed after the 2026-09-10 analysis date and are excluded).
+        ticker: Short ticker (default 'ASELS'). Other tickers return the basic
+                statement columns only (revenue, ebitda, net_profit, total_assets,
+                shareholders_equity, net_debt), as single quarters in million TRY.
 
     Returns:
         dict with all metric columns for the requested period.
         Monetary values are in million TRY; margins/returns are decimals;
         multiples are raw ratio values.
     """
-    df = load_fundamentals("ASELS")
-    df = calculate_derived_ratios(df)
-    df = calculate_market_multiples(df, CURRENT_PRICE, SHARES_OUTSTANDING)
-
+    ticker = ticker.upper()
+    if ticker != "ASELS":
+        try:
+            df = _rx._quarterly_frame(ticker)
+        except ValueError as exc:
+            return {"error": str(exc)}
+    else:
+        df = load_fundamentals("ASELS")
+        df = calculate_derived_ratios(df)
+        df = calculate_market_multiples(df, CURRENT_PRICE, SHARES_OUTSTANDING)
     if period not in df.index:
         available = list(df.index)
         return {"error": f"Period '{period}' not found. Available: {available}"}
@@ -421,12 +435,14 @@ def run_backtest_summary(
 # Private helpers for the harness tools
 # ---------------------------------------------------------------------------
 
-def _load_price_df(ticker: str) -> pd.DataFrame:
-    """Read cached OHLCV CSV for ticker; fall back to live fetch on miss."""
+def _load_price_df(ticker: str, as_of: str = "") -> pd.DataFrame:
+    """Read cached OHLCV for ticker, never beyond the analysis date (or beyond `as_of` when given)."""
+    cap, _ = _rx.resolve_as_of(as_of)
     path = os.path.join(_CACHE_DIR, f"{ticker}.csv")
     if os.path.isfile(path):
-        return pd.read_csv(path, index_col="Date", parse_dates=True)
-    return fetch_ohlcv(f"{ticker}.IS", "2023-01-02", "2026-01-01")
+        df = pd.read_csv(path, index_col="Date", parse_dates=True)
+        return df.loc[df.index <= cap]
+    return fetch_ohlcv(f"{ticker}.IS", "2023-01-02", str((cap + pd.Timedelta(days=1)).date()))
 
 
 def _build_price_with_indicators(df: pd.DataFrame) -> pd.DataFrame:
@@ -963,24 +979,44 @@ def _default_snap_date() -> pd.Timestamp:
     return _load_price_df("XU100").index[-1]
 
 
-def _summarise_events(log: pd.DataFrame, snap: pd.Timestamp) -> dict:
-    """Per-event-type count, bounce rate and mean 5-day forward return."""
-    out = {}
+def _summarise_group(grp: pd.DataFrame, snap: pd.Timestamp, baseline: dict | None) -> dict:
+    """Compact statistics for one set of events (kept small: the caller may be a small local LLM)."""
+    dates = pd.to_datetime(grp["event_date"])
+    rec = {"n": int(len(grp)), "days_since_last": int((snap - dates.max()).days) if len(dates) else None,
+           "low_sample_warning": bool(len(grp) < 10)}
+    for h in (1, 3, 5, 10):
+        f = grp[f"forward_return_{h}d"].dropna()
+        rec[f"n_complete_{h}d"] = int(len(f))
+        rec[f"avg_fwd_{h}d"] = float(f.mean()) if len(f) else None
+        rec[f"positive_rate_{h}d"] = float((f > 0).mean()) if len(f) else None
+        if h == 5:
+            rec["median_fwd_5d"] = float(f.median()) if len(f) else None
+            rec["n_excluded_incomplete_5d"] = int(len(grp) - len(f))
+            if baseline and len(f):
+                rec["baseline_avg_fwd_5d_all_days"] = baseline[5]["mean"]
+                rec["baseline_positive_rate_5d_all_days"] = baseline[5]["pos"]
+                rec["excess_avg_fwd_5d"] = float(f.mean() - baseline[5]["mean"])
+    rec["bounce_rate_5d"] = rec["positive_rate_5d"]   # name used by earlier answers
+    return rec
+
+
+def _summarise_events(log: pd.DataFrame, snap: pd.Timestamp, baseline: dict | None = None) -> dict:
+    """Per-event-type statistics (events with incomplete forward windows are excluded per horizon)."""
     if log is None or log.empty:
-        return out
-    for etype, grp in log.groupby("event_type"):
-        fwd5  = grp["forward_return_5d"].dropna()
-        dates = pd.to_datetime(grp["event_date"])
-        out[etype] = {
-            "n":               int(len(grp)),
-            "n_with_5d_return": int(len(fwd5)),
-            "bounce_rate_5d":  float((fwd5 > 0).mean()) if len(fwd5) else None,
-            "avg_fwd_5d":      float(fwd5.mean())        if len(fwd5) else None,
-            "median_fwd_5d":   float(fwd5.median())      if len(fwd5) else None,
-            "days_since_last": int((snap - dates.max()).days) if len(dates) else None,
-            "low_sample_warning": bool(len(grp) < 10),
-        }
-    return out
+        return {}
+    return {etype: _summarise_group(grp, snap, baseline) for etype, grp in log.groupby("event_type")}
+
+
+def _thin_events(log: pd.DataFrame, min_gap_days: int) -> pd.DataFrame:
+    """Keep an event only if it is at least `min_gap_days` calendar days after the previous kept event."""
+    if log.empty or min_gap_days <= 0:
+        return log
+    keep, last = [], None
+    for i, d in zip(log.index, pd.to_datetime(log["event_date"])):
+        if last is None or (d - last).days >= min_gap_days:
+            keep.append(i)
+            last = d
+    return log.loc[keep]
 
 
 @mcp.tool()
@@ -1025,6 +1061,8 @@ def test_weekday_pattern(
     ticker: str,
     start_date: str = "",
     end_date: str = "",
+    train_end: str = "",
+    cost_bps: float = 0.0,
 ) -> dict:
     """
     Test whether each weekday's mean return differs from the stock's overall
@@ -1037,7 +1075,11 @@ def test_weekday_pattern(
     Args:
         ticker:     Short BIST ticker, e.g. 'THYAO'.
         start_date: Optional 'YYYY-MM-DD' lower bound.
-        end_date:   Optional 'YYYY-MM-DD' upper bound.
+        end_date:   Optional 'YYYY-MM-DD' upper bound (never later than the analysis date).
+        train_end:  Optional 'YYYY-MM-DD' last in-sample day; later days are the out-of-sample
+                    test. Empty = chronological 70/30 split.
+        cost_bps:   Optional round-trip transaction cost in basis points for a one-day hold;
+                    adds Mean_Return_net_of_cost.
 
     Returns:
         {"ticker", "period", "n_days", "weekdays": [{Weekday, N, Mean_Return,
@@ -1046,11 +1088,9 @@ def test_weekday_pattern(
          "note": str}
     """
     ticker = ticker.upper()
-    df = _load_price_df(ticker)
+    df = _load_price_df(ticker, end_date)
     if start_date:
         df = df.loc[df.index >= pd.Timestamp(start_date)]
-    if end_date:
-        df = df.loc[df.index <= pd.Timestamp(end_date)]
     df = calculate_weekday_returns(df)
 
     res = _wd_test(df, ticker)
@@ -1060,25 +1100,33 @@ def test_weekday_pattern(
 
     # Out-of-sample stability: chronological 70/30 split
     clean = df.dropna(subset=["Daily_Return", "Weekday"])
-    split = int(len(clean) * 0.7)
-    train, test = clean.iloc[:split], clean.iloc[split:]
+    if train_end:
+        train, test = clean.loc[clean.index <= pd.Timestamp(train_end)], clean.loc[clean.index > pd.Timestamp(train_end)]
+    else:
+        split = int(len(clean) * 0.7)
+        train, test = clean.iloc[:split], clean.iloc[split:]
     train_m = train.groupby("Weekday")["Daily_Return"].mean()
     test_m  = test.groupby("Weekday")["Daily_Return"].mean()
     res["train_mean"] = res["Weekday"].map(train_m)
     res["test_mean"]  = res["Weekday"].map(test_m)
     res["same_sign_oos"] = (res["train_mean"] * res["test_mean"]) > 0
+    res["Mean_Return_net_of_cost"] = res["Mean_Return"] - cost_bps / 1e4
+    res["n_train"] = len(train)
+    res["n_test"] = len(test)
 
-    cols = ["Weekday", "N", "Mean_Return", "Median_Return", "Positive_Rate",
+    cols = ["Weekday", "N", "Mean_Return", "Mean_Return_net_of_cost", "Median_Return", "Positive_Rate",
             "P_Value", "Significant_Raw", "Significant_Bonferroni",
             "train_mean", "test_mean", "same_sign_oos"]
     return _sanitise({
         "ticker": ticker,
         "period": f"{clean.index[0].date()} to {clean.index[-1].date()}",
         "n_days": int(len(clean)),
+        "train_period": f"{train.index[0].date()} to {train.index[-1].date()} ({len(train)} days)" if len(train) else None,
+        "test_period": f"{test.index[0].date()} to {test.index[-1].date()} ({len(test)} days)" if len(test) else None,
         "weekdays": res[cols].to_dict("records"),
         "note": ("Bonferroni corrects over 5 weekday tests for this one ticker only; "
                  "testing many tickers raises the multiple-testing risk further. "
-                 "No transaction costs are applied here."),
+                 + ("Costs applied: %.0f bps round trip." % cost_bps if cost_bps else "No transaction costs are applied (cost_bps=0).")),
     })
 
 
@@ -1087,25 +1135,45 @@ def detect_reversal_events(
     ticker: str,
     event_type: str = "",
     last_n: int = 5,
+    as_of: str = "",
+    rsi_state: str = "",
+    volume_regime: str = "",
+    supertrend_state: str = "",
+    ichimoku_state: str = "",
+    min_gap_days: int = 0,
 ) -> dict:
     """
     Detect timestamped technical reversal events (Bollinger touches, RSI
     extrema, Supertrend flips, KAMA crosses, Ichimoku events) and report
-    historical statistics: count, 5-day bounce rate and forward returns.
+    historical statistics: count, forward returns over 1/3/5/10 trading days,
+    positive rate, and the unconditional all-days baseline for comparison.
+    Events whose forward window is not complete by the analysis date are
+    excluded per horizon (counted in n_excluded_incomplete_*).
+
+    Combined conditions: optional filters select events whose state at the
+    event date matches, e.g. RSI trough + high volume
+    (event_type='rsi_trough', volume_regime='high') or a bearish Supertrend
+    below the Ichimoku cloud (supertrend_state='bearish',
+    ichimoku_state='below_cloud').
 
     Args:
-        ticker:     Short BIST ticker, e.g. 'ASELS'.
-        event_type: Optional exact event type to filter (see "event_types" in
-                    the result).  Empty string returns all types.
-        last_n:     How many of the most recent events to list per request.
+        ticker:           Short BIST ticker, e.g. 'ASELS'.
+        event_type:       Optional exact event type (see "event_types" in the result).
+        last_n:           How many of the most recent events to list.
+        as_of:            Optional analysis date 'YYYY-MM-DD' (never later than 2026-09-10).
+        rsi_state:        Optional 'trough_zone', 'peak_zone' or 'neutral'.
+        volume_regime:    Optional 'high' or 'normal'.
+        supertrend_state: Optional 'bullish' or 'bearish'.
+        ichimoku_state:   Optional 'above_cloud', 'in_cloud' or 'below_cloud'.
+        min_gap_days:     If > 0, keep only events at least this many calendar days apart
+                          (reduces clustered, overlapping observations).
 
     Returns:
-        {"ticker", "as_of", "event_types": [...], "statistics": {type: {n,
-         bounce_rate_5d, avg_fwd_5d, median_fwd_5d, days_since_last,
-         low_sample_warning}}, "recent_events": [...]}
+        {"ticker", "as_of", "event_types", "filters", "statistics": {type: {...}},
+         "recent_events": [...], "warnings": [...]}
     """
     ticker = ticker.upper()
-    df_raw = _load_price_df(ticker)
+    df_raw = _load_price_df(ticker, as_of)
     df, _  = _build_price_with_indicators(df_raw.copy())
     snap   = df.index[-1]
     log    = build_event_log(df, ticker)
@@ -1117,17 +1185,48 @@ def detect_reversal_events(
         if event_type not in all_types:
             return {"error": f"Unknown event_type '{event_type}'.", "event_types": all_types}
         log = log[log["event_type"] == event_type]
+    filters = {k: v for k, v in {"rsi_state": rsi_state, "volume_regime": volume_regime,
+                                 "supertrend_state": supertrend_state, "ichimoku_state": ichimoku_state}.items() if v}
+    for col, val in filters.items():
+        log = log[log[col] == val]
+    log = log.sort_values("event_date")
+    n_before_thin = len(log)
+    log = _thin_events(log, int(min_gap_days))
 
-    recent = log.sort_values("event_date").tail(max(1, int(last_n)))
+    close = df["Close"]
+    baseline = {}
+    for h in (1, 3, 5, 10):
+        fr = (close.shift(-h) / close - 1).dropna()
+        baseline[h] = {"mean": float(fr.mean()), "pos": float((fr > 0).mean())}
+
+    warnings = ["Forward returns use only closes up to the analysis date; incomplete windows are excluded, not estimated.",
+                "Compare with the all-days baseline: a positive average alone is not evidence of a reversal edge.",
+                "Events cluster in time, so observations overlap; read small samples with caution."]
+    if filters and len(log) < 10:
+        warnings.append(f"Only {len(log)} events match the combined condition: low-sample warning.")
+    if min_gap_days and n_before_thin != len(log):
+        warnings.append(f"min_gap_days={min_gap_days} removed {n_before_thin - len(log)} clustered events.")
+
+    if filters and not event_type:
+        # combined condition: one pooled statistic across the matching events (types listed by count only)
+        stats_out = {"pooled_matching_events": _summarise_group(log, snap, baseline)} if len(log) else {}
+        stats_out["matching_events_by_type"] = {k: int(v) for k, v in log["event_type"].value_counts().items()}
+    else:
+        stats_out = _summarise_events(log, snap, baseline)
+
+    recent = log.tail(max(1, int(last_n)))
     keep   = ["event_date", "event_type", "close_price", "rsi_state", "supertrend_state",
               "kama_slope", "ichimoku_state", "volume_regime",
               "forward_return_1d", "forward_return_3d", "forward_return_5d", "forward_return_10d"]
     return _sanitise({
         "ticker":        ticker,
         "as_of":         str(snap.date()),
-        "event_types":   all_types,
-        "statistics":    _summarise_events(log, snap),
+        "event_types":   all_types if not filters else None,
+        "filters":       filters,
+        "n_matching_events": int(len(log)),
+        "statistics":    stats_out,
         "recent_events": recent[[c for c in keep if c in recent.columns]].to_dict("records"),
+        "warnings":      warnings,
     })
 
 
@@ -1287,6 +1386,133 @@ def build_evidence_bundle_tool(session_id: str) -> dict:
         "n_observed":          len(bundle.observed_context),
         "n_committed":         len(bundle.committed_evidence),
     })
+
+
+# ---------------------------------------------------------------------------
+# Analysis-date aware research tools (sector catch-up, weekday sequences,
+# quarterly fundamentals + price reaction, macro relationship)
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+def backtest_sector_catchup(
+    sector_group: str,
+    as_of: str = "",
+    start: str = "2024-01-01",
+    lag_threshold: float = -0.05,
+    horizons: str = "5,10,20",
+    cost_bps: float = 0.0,
+) -> dict:
+    """
+    Historical test of the "sector laggard catches up" idea for one sector group.
+    Every Friday, a stock whose 20-day return is below its sector benchmark by more
+    than the threshold is a laggard. The tool then measures the next 5/10/20 trading
+    days: catch-up rate (stock beats the sector benchmark), hit rate (return > 0),
+    mean/median return, excess return, and the same statistics for non-laggard peers.
+    Signals whose forward window is incomplete at the analysis date are excluded.
+
+    Args:
+        sector_group:  Sector group, e.g. 'Financials', 'Metals & Mining', 'Retail'.
+        as_of:         Analysis date 'YYYY-MM-DD' (never later than 2026-09-10).
+        start:         First snapshot date.
+        lag_threshold: Lag score cut-off as a fraction (-0.05 = 5 percentage points behind).
+        horizons:      Comma-separated forward windows in trading days.
+        cost_bps:      Optional round-trip transaction cost in basis points.
+
+    Returns:
+        {"sector_group", "members", "results": {"5d": {n_signals, catchup_rate, hit_rate_abs,
+         mean_return, baseline_catchup_rate_non_laggards, binomial_p_vs_baseline, ...}}, "warnings"}
+    """
+    try:
+        hs = tuple(int(x) for x in str(horizons).split(",") if x.strip())
+    except ValueError:
+        return {"error": "horizons must be comma-separated integers, e.g. '5,10,20'."}
+    return _sanitise(_rx.sector_catchup_backtest(sector_group, as_of, start, lag_threshold, 20, hs or (5, 10, 20), cost_bps))
+
+
+@mcp.tool()
+def test_weekday_sequence(
+    ticker: str,
+    first_day: str = "Monday",
+    first_direction: str = "negative",
+    second_day: str = "Friday",
+    second_direction: str = "positive",
+    as_of: str = "",
+    start: str = "",
+    train_end: str = "",
+    cost_bps: float = 0.0,
+    n_hypotheses: int = 1,
+) -> dict:
+    """
+    Test a multi-day weekday sequence within each calendar week, e.g. "a negative
+    Monday is followed by a positive Friday". Reports P(second-day move | first-day
+    move) against the unconditional probability, a binomial test, an in-sample /
+    out-of-sample split at train_end, the cost-adjusted hold return from the first
+    day's close to the second day's close, and whether the pattern is stable out of sample.
+
+    Args:
+        ticker:           Short BIST ticker, e.g. 'THYAO'.
+        first_day:        Weekday name of the condition day.
+        first_direction:  'negative' or 'positive' return on the first day.
+        second_day:       Later weekday name.
+        second_direction: 'positive' or 'negative' return on the second day.
+        as_of:            Analysis date (never later than 2026-09-10).
+        start:            Optional first date.
+        train_end:        Last in-sample date; later weeks are out-of-sample (empty = 70/30 split).
+        cost_bps:         Optional round-trip transaction cost in basis points.
+        n_hypotheses:     Number of patterns scanned (for Bonferroni alpha = 0.05 / n).
+    """
+    return _sanitise(_rx.weekday_sequence_test(ticker, first_day, first_direction, second_day, second_direction,
+                                               as_of, start, train_end, cost_bps, n_hypotheses))
+
+
+@mcp.tool()
+def calculate_fundamental_change(ticker: str, as_of: str = "") -> dict:
+    """
+    For the latest quarterly result disclosed by the analysis date, compute the
+    change in revenue, net profit, EBITDA margin and net debt / TTM EBITDA
+    (YoY and QoQ), then the stock's 1-, 5- and 20-trading-day returns after the
+    disclosure date, raw and abnormal versus XU100 and versus the sector peer
+    median, plus the historical association between profit growth and the
+    reaction. Quarters disclosed after the analysis date are excluded and listed;
+    return windows that are not complete by the analysis date are reported as null.
+    Disclosure dates are proxies; the result is an association, not a causal claim.
+
+    Args:
+        ticker: Short BIST ticker, e.g. 'EREGL' (26 tickers have fundamentals).
+        as_of:  Analysis date 'YYYY-MM-DD' (never later than 2026-09-10).
+    """
+    try:
+        return _sanitise(_rx.fundamental_change(ticker, as_of))
+    except ValueError as exc:
+        return {"error": str(exc)}
+
+
+@mcp.tool()
+def analyze_macro_stock_relationship(
+    ticker: str,
+    macro_variable: str = "usdtry",
+    start_date: str = "",
+    end_date: str = "",
+    frequency: str = "weekly",
+) -> dict:
+    """
+    Relationship between a stock and a macro series over a period: stock total
+    return, macro start/end values, correlation of weekly (or monthly/daily)
+    stock returns with the macro series' change, first-half vs second-half
+    consistency, and the stock's return in FX terms for usdtry/eurtry.
+    Association only, never causation.
+
+    Args:
+        ticker:         Short BIST ticker, e.g. 'EREGL'.
+        macro_variable: 'usdtry', 'eurtry', 'tcmb_rate', 'tufe_yoy' or 'fed_rate'.
+        start_date:     Optional 'YYYY-MM-DD'.
+        end_date:       Optional 'YYYY-MM-DD' (never later than 2026-09-10).
+        frequency:      'weekly' (default), 'monthly' or 'daily'.
+    """
+    try:
+        return _sanitise(_rx.macro_stock_relationship(ticker, macro_variable, start_date, end_date, frequency))
+    except ValueError as exc:
+        return {"error": str(exc)}
 
 
 # ---------------------------------------------------------------------------

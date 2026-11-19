@@ -9,6 +9,11 @@ import pandas as pd
 
 _FUND_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "data", "fundamentals")
 
+# Fundamentals files that hold cumulative year-to-date flows instead of single quarters.
+YTD_TICKERS = {"ASELS"}
+_FLOW_COLS = ["revenue", "gross_profit", "ebitda", "operating_profit", "net_profit",
+              "operating_cash_flow", "investing_cash_flow", "financing_cash_flow"]
+
 
 def load_fundamentals(ticker: str) -> pd.DataFrame:
     """
@@ -37,6 +42,13 @@ def load_fundamentals(ticker: str) -> pd.DataFrame:
 
     numeric_cols = [c for c in df.columns if c != "period"]
     df[numeric_cols] = df[numeric_cols].apply(pd.to_numeric, errors="coerce")
+
+    if ticker.upper() in YTD_TICKERS:
+        # This file stores year-to-date flows (Q2 = H1, Q4 = full year); convert to single quarters
+        # so TTM sums, QoQ and YoY changes are computed on comparable quarterly values.
+        year = df["period"].str[:4]
+        for c in [x for x in _FLOW_COLS if x in df.columns]:
+            df[c] = df[c] - df[c].groupby(year).shift(1).fillna(0)
 
     df = df.set_index("period")
     return df

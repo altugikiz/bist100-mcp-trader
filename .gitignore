@@ -9,3 +9,4 @@ llm/Modelfile.ft*
 data/llm_train/
 llm/adapters*/
 llm/fused*/
+data/_backup_before_refresh/

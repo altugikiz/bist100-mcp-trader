@@ -109,8 +109,10 @@ def parse_raw_reply(text: str) -> dict:
     return msg
 
 
-def _system_prompt() -> str:
-    txt = open(os.path.join(os.path.dirname(__file__), "Modelfile")).read()
+def _system_prompt(model: str = "") -> str:
+    # The fine-tuned adapters were trained with the earlier prompt (Modelfile.ft); keep it for them.
+    fn = "Modelfile.ft" if (model.startswith("mlx:") or model.endswith("-ft")) else "Modelfile"
+    txt = open(os.path.join(os.path.dirname(__file__), fn)).read()
     sp = txt.split('SYSTEM """', 1)[1].rsplit('"""', 1)[0].strip()
     return sp
 
@@ -149,7 +151,7 @@ def raw_chat(model: str, messages: list, tools: list, think: bool) -> dict:
     if _TOKENIZER is None:
         from transformers import AutoTokenizer
         _TOKENIZER = AutoTokenizer.from_pretrained(os.environ.get("BIST_TOKENIZER", "mlx-community/Qwen3-4B-4bit"))
-    msgs = [{"role": "system", "content": _system_prompt()}] + messages
+    msgs = [{"role": "system", "content": _system_prompt(model)}] + messages
     prompt = _TOKENIZER.apply_chat_template(msgs, tools=tools, tokenize=False, add_generation_prompt=True)
     if model.startswith("mlx:"):
         # In-process MLX: base 4-bit model + LoRA adapter, no export and no server (mlx_lm.server would parse
@@ -271,7 +273,7 @@ def _run_agent(question: str, model: str, think: bool = False,
             # Date grounding: when the question names no year, a date range invented by the model is dropped
             # so the tool's own default window (the full local data) applies.
             if not re.search(r"\b(19|20)\d{2}\b", question):
-                for key in ("start", "end", "start_date", "end_date", "date"):
+                for key in ("start", "end", "start_date", "end_date", "date", "as_of", "train_end"):
                     if key in args and key in by_name.get(name, {}).get("function", {}).get("parameters", {}).get("properties", {}):
                         args.pop(key)
                         stats["dates_dropped"] = stats.get("dates_dropped", 0) + 1

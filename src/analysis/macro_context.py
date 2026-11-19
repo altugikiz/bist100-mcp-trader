@@ -43,6 +43,7 @@ TCMB_POLICY_RATE_CHANGES: pd.DataFrame = pd.DataFrame([
     ("2025-09-11", 40.50),
     ("2025-10-23", 39.50),
     ("2025-12-11", 38.00),
+    ("2026-01-22", 37.00),   # held at 37.00 through the 2026-09-10 MPC meeting
 ], columns=["date", "rate_pct"])
 TCMB_POLICY_RATE_CHANGES["date"] = pd.to_datetime(TCMB_POLICY_RATE_CHANGES["date"])
 
@@ -57,11 +58,26 @@ TUFE_YOY_ANCHORS: pd.DataFrame = pd.DataFrame([
     ("2025-03-31", 38.10),
     ("2025-04-30", 37.86),
     ("2025-05-31", 35.41),
+    ("2025-06-30", 35.05),
+    ("2025-07-31", 33.52),
+    ("2025-08-31", 32.95),
+    ("2025-09-30", 33.29),
+    ("2025-10-31", 32.87),
+    ("2025-11-30", 31.07),
     ("2025-12-31", 30.89),
+    ("2026-01-31", 30.65),
+    ("2026-02-28", 31.53),
+    ("2026-03-31", 30.87),
+    ("2026-04-30", 32.37),
+    ("2026-05-31", 32.61),
+    ("2026-06-30", 32.11),
+    ("2026-07-31", 31.75),
+    ("2026-08-31", 31.51),   # last print published on/before the 2026-09-10 analysis date
 ], columns=["date", "yoy_pct"])
 TUFE_YOY_ANCHORS["date"] = pd.to_datetime(TUFE_YOY_ANCHORS["date"])
 
 # Fed funds rate — exact upper-bound target from FOMC decisions
+# (no FOMC change between 2025-12-10 and 2026-09-10; next move was 2026-09-16, after the analysis date)
 FED_FUNDS_RATE_CHANGES: pd.DataFrame = pd.DataFrame([
     ("2024-01-01", 5.50),
     ("2024-09-18", 5.00),
@@ -80,7 +96,7 @@ FED_FUNDS_RATE_CHANGES["date"] = pd.to_datetime(FED_FUNDS_RATE_CHANGES["date"])
 
 def fetch_fx_series(
     start: str = "2023-01-01",
-    end:   str = "2026-01-01",
+    end:   str = "2026-09-11",
 ) -> pd.DataFrame:
     """
     Download daily USD/TRY and EUR/TRY closing rates from Yahoo Finance.
@@ -143,8 +159,8 @@ def _interpolated_series(
     """
     Build a daily series by linearly interpolating between anchor points.
 
-    Days outside the anchor range (before the first anchor or after the last)
-    are left as NaN — no extrapolation.
+    Days before the first anchor are NaN; days after the last anchor carry the
+    last published value forward (no extrapolation of a trend).
     """
     anchors = anchors_df.sort_values(date_col).copy()
     anchor_timestamps = anchors[date_col].values.astype("int64")
@@ -162,7 +178,9 @@ def _interpolated_series(
     result = pd.Series(interp_values, index=date_index, dtype=float)
     # Mask extrapolation regions
     result.loc[date_index < pd.Timestamp(anchors[date_col].iloc[0])]  = np.nan
-    result.loc[date_index > pd.Timestamp(anchors[date_col].iloc[-1])] = np.nan
+    # After the last anchor carry the last published value forward (point-in-time:
+    # the latest known print stays valid until the next release).
+    result.loc[date_index > pd.Timestamp(anchors[date_col].iloc[-1])] = anchor_values[-1]
 
     return result
 
@@ -173,7 +191,7 @@ def _interpolated_series(
 
 def build_daily_macro_series(
     start: str = "2024-01-01",
-    end:   str = "2025-12-31",
+    end:   str = "2026-09-10",
 ) -> pd.DataFrame:
     """
     Construct a single daily macro DataFrame combining all four sources.
@@ -228,8 +246,8 @@ if __name__ == "__main__":
     pd.set_option("display.float_format", "{:.4f}".format)
     pd.set_option("display.width", 120)
 
-    print("Building daily macro series 2024-01-01 … 2025-12-31 …")
-    macro = build_daily_macro_series("2024-01-01", "2025-12-31")
+    print("Building daily macro series 2024-01-01 … 2026-09-10 …")
+    macro = build_daily_macro_series("2024-01-01", "2026-09-10")
 
     os.makedirs(_MACRO_DIR, exist_ok=True)
     out_path = os.path.join(_MACRO_DIR, "macro_daily.csv")
