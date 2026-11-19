@@ -1044,7 +1044,8 @@ def rank_sector_relative_strength(
     sector_group = _rx.normalize_sector_group(sector_group)
     snap = pd.Timestamp(date) if date else _default_snap_date()
     rank_df = rank_universe_by_sector(snap, windows=[5, 10, 20])
-    if sector_group.strip().lower() in ("all", "any", "*", "all sectors", "tümü", "hepsi"):
+    if sector_group.strip().lower() in ("all", "any", "*", "all sectors", "tümü", "hepsi", "bist 100", "bist100", "bist", "xu100",
+                                          "market", "entire market", "universe", "all stocks", "none"):
         sector_group = ""   # "all" means no group filter
     if sector_group:
         rank_df = rank_df[rank_df["sector_group"].str.lower() == sector_group.lower()]
