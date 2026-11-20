@@ -156,6 +156,7 @@ def sector_catchup_backtest(sector_group: str, as_of: str = "", start: str = "20
             base_rate = float((base[f"rel_{h}"] > 0).mean()) if len(base) else None
             d.update({
                 "catchup_rate": k / n,
+                "n_false_positives": int(n - k),
                 "hit_rate_abs": float((sig[f"ret_{h}"] > 0).mean()),
                 "mean_return": float(sig[f"ret_{h}"].mean()),
                 "median_return": float(sig[f"ret_{h}"].median()),
@@ -180,7 +181,8 @@ def sector_catchup_backtest(sector_group: str, as_of: str = "", start: str = "20
         edge = bool(base is not None and d["catchup_rate"] > base and p is not None and p < 0.05 and d["n_signals"] >= 30)
         summary.append(
             f"{h}: catch-up rate {d['catchup_rate']*100:.1f}% vs {base*100:.1f}% for non-laggards "
-            f"(n={d['n_signals']}, p={p:.3f}) -> " + ("evidence of a catch-up edge." if edge else
+            f"(n={d['n_signals']}, p={p:.3f}; false positives, i.e. laggards that kept underperforming the sector: "
+            f"{d['n_signals'] - int(round(d['catchup_rate']*d['n_signals']))} of {d['n_signals']}) -> " + ("evidence of a catch-up edge." if edge else
                                                        "NO evidence that laggards catch up more often than other stocks.")
             if base is not None and p is not None else f"{h}: baseline not available.")
     incomplete = int(df["laggard"].sum() - len(df[df["laggard"]].dropna(subset=[f"ret_{horizons[-1]}"])))
@@ -396,6 +398,15 @@ def weekday_multiday_pattern_test(ticker: str, condition: str = "Mon down, Tue d
             f"n={oos['weeks_with_condition']}. "
             + ("Same direction out of sample, but small samples: weak evidence only." if stable else
                "NOT stable out of sample (no reliable pattern), or too few occurrences to say."))
+    def hold_txt(seg_res, label):
+        if seg_res.get("mean_hold_return") is None:
+            return f"{label}: no condition weeks."
+        return (f"{label}: trading the pattern (buy at the last condition day's close, sell at the last outcome day's close) gave a mean "
+                f"{seg_res['mean_hold_return']*100:.2f}% and median {seg_res['median_hold_return']*100:.2f}% per condition week"
+                f" ({seg_res['mean_hold_return_net_of_cost']*100:.2f}% mean after {cost_bps:.0f} bps cost).")
+    summ += (" " + hold_txt(ins, "In-sample") + " " + hold_txt(oos, "Out-of-sample")
+             + f" Multiple-testing risk: this is {n_hypotheses} pre-specified pattern (Bonferroni alpha {alpha:.4f}); scanning many weekday sequences "
+               "across many stocks would produce chance patterns, so a pattern found by search needs a much stricter threshold and out-of-sample confirmation.")
     return {"ticker": ticker.upper(), "as_of": str(resolve_as_of(as_of)[0].date()), "condition": fmt(cl), "outcome": fmt(ol),
             "train_end": str(cut.date()), "full_sample": full, "in_sample": ins, "out_of_sample": oos,
             "evidence_summary": summ, "bonferroni_alpha": alpha,

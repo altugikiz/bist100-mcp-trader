@@ -15,6 +15,7 @@ No network port is opened; Claude Desktop or another MCP host manages the
 process lifecycle.
 """
 
+import re
 import io
 import os
 import sys
@@ -173,37 +174,50 @@ def calculate_indicators(
     symbol: str = DEFAULT_TICKER,
     start: str = DEFAULT_START,
     end: str = _TOOL_END,
+    as_of: str = "",
 ) -> dict:
     """
-    Compute SMA20, SMA50, RSI14, MACD line, MACD Signal, and MACD Histogram
-    for a stock and return the most recent values.
+    Compute the technical indicators for a stock (SMA20/50, RSI14, MACD, Bollinger Bands, ATR, KAMA and its
+    slope, Supertrend direction, Ichimoku state, volume regime) and return their latest values.
 
-    Use this tool when the user asks about trend direction, momentum, moving
-    averages, RSI overbought/oversold status, or MACD crossovers.
+    Use this tool when the user asks about trend direction, momentum, moving averages, Bollinger Bands,
+    RSI status, Supertrend, Ichimoku or KAMA, or before analysing technical reversal events.
+
+    Args:
+        symbol: Ticker, e.g. 'ASELS' or 'ASELS.IS'.
+        as_of:  Optional analysis date 'YYYY-MM-DD' (never later than 2026-09-10).
 
     Returns:
-        dict with the latest values of each indicator and a brief
-        interpretation (e.g. 'SMA20 > SMA50 → uptrend').
+        dict with the latest values of each indicator, the data end date and a brief interpretation.
     """
-    df = fetch_ohlcv(symbol, start, end)
-    df["SMA20"] = calculate_sma(df, 20)
-    df["SMA50"] = calculate_sma(df, 50)
-    df["RSI14"] = calculate_rsi(df, 14)
-    df[["MACD", "MACD_Signal", "MACD_Hist"]] = calculate_macd(df)
-
+    ticker = symbol.upper().replace(".IS", "")
+    df, _ = _build_price_with_indicators(_load_price_df(ticker, as_of or end).copy())
+    df = df.loc[df.index >= pd.Timestamp(start)]
     last = df.iloc[-1]
     date = df.index[-1].strftime("%Y-%m-%d")
+    vol_avg = df["Volume"].rolling(20).mean().iloc[-1]
+
+    def r(x, k=4):
+        return None if pd.isna(x) else round(float(x), k)
 
     return _sanitise({
-        "symbol":       symbol,
+        "symbol":       ticker,
         "as_of":        date,
-        "close":        round(float(last["Close"]), 4),
-        "SMA20":        round(float(last["SMA20"]), 4),
-        "SMA50":        round(float(last["SMA50"]), 4),
-        "RSI14":        round(float(last["RSI14"]), 2),
-        "MACD":         round(float(last["MACD"]), 4),
-        "MACD_Signal":  round(float(last["MACD_Signal"]), 4),
-        "MACD_Hist":    round(float(last["MACD_Hist"]), 4),
+        "close":        r(last["Close"]),
+        "SMA20":        r(last["SMA20"]),
+        "SMA50":        r(last["SMA50"]),
+        "RSI14":        r(last["RSI14"], 2),
+        "MACD":         r(last["MACD"]),
+        "MACD_Signal":  r(last["MACD_Signal"]),
+        "MACD_Hist":    r(last["MACD_Hist"]),
+        "Bollinger":    {"upper": r(last["BB_Upper"]), "middle": r(last["BB_Middle"]), "lower": r(last["BB_Lower"])},
+        "ATR":          r(last["ATR"]),
+        "KAMA":         r(last["KAMA"]),
+        "KAMA_slope":   None if pd.isna(last["KAMA_Slope"]) else str(last["KAMA_Slope"]),
+        "Supertrend_direction": None if pd.isna(last["Supertrend_Direction"]) else str(last["Supertrend_Direction"]),
+        "Ichimoku_state": (str(df["Ichimoku_State"].dropna().iloc[-1]) if df["Ichimoku_State"].notna().any() else None),
+        "Ichimoku_state_date": (df["Ichimoku_State"].dropna().index[-1].strftime("%Y-%m-%d") if df["Ichimoku_State"].notna().any() else None),
+        "volume_regime": "high" if last["Volume"] > vol_avg else "normal",
         "signals": {
             "trend":   "uptrend"   if last["SMA20"] > last["SMA50"] else "downtrend",
             "price_vs_sma20": "above" if last["Close"] > last["SMA20"] else "below",
@@ -213,6 +227,8 @@ def calculate_indicators(
                 else "neutral"
             ),
             "macd_crossover": "bullish" if last["MACD"] > last["MACD_Signal"] else "bearish",
+            "bollinger_position": ("at or below lower band" if last["Close"] <= last["BB_Lower"]
+                                   else "at or above upper band" if last["Close"] >= last["BB_Upper"] else "inside the bands"),
         },
     })
 
@@ -1094,11 +1110,13 @@ def test_weekday_pattern(
     end_date: str = "",
     train_end: str = "",
     cost_bps: float = 0.0,
+    pattern: str = "",
 ) -> dict:
     """
-    Test whether each weekday's mean return differs from the stock's overall
-    mean (one-sample t-test), with Bonferroni correction and an out-of-sample
-    check (first 70% of days = train, last 30% = test).
+    Test weekday patterns. With `pattern` (e.g. 'Monday, Tuesday, Wednesday down, then Thursday, Friday up')
+    it tests that multi-day sequence: occurrences, probability against unconditional, mean and median returns,
+    costs, in-sample versus out-of-sample, multiple-testing note. Without `pattern` it tests each weekday's mean
+    return against the stock's overall mean (one-sample t-test, Bonferroni, out-of-sample check).
 
     Weekday patterns are frequently spurious.  Treat a day as stable only if
     it is significant after correction AND keeps its sign out of sample.
@@ -1111,6 +1129,8 @@ def test_weekday_pattern(
                     test. Empty = chronological 70/30 split.
         cost_bps:   Optional round-trip transaction cost in basis points for a one-day hold;
                     adds Mean_Return_net_of_cost.
+        pattern:    Optional multi-day pattern 'condition then outcome', e.g. 'Mon down, Tue down, Wed down,
+                    then Thu up, Fri up'. Set train_end to the last in-sample day (e.g. 2025-12-31).
 
     Returns:
         {"ticker", "period", "n_days", "weekdays": [{Weekday, N, Mean_Return,
@@ -1119,6 +1139,11 @@ def test_weekday_pattern(
          "note": str}
     """
     ticker = ticker.upper()
+    if pattern and pattern.strip():
+        parts = re.split(r"\s*(?:,\s*)?(?:\bthen\b|\bfollowed by\b|\bardından\b|\bardindan\b|\bsonra\b|->|→|=>)\s*", pattern.strip(), maxsplit=1, flags=re.I)
+        if len(parts) != 2 or not parts[0].strip() or not parts[1].strip():
+            return {"error": "pattern must be 'condition then outcome', e.g. 'Mon down, Tue down, Wed down, then Thu up, Fri up'."}
+        return _sanitise(_rx.weekday_multiday_pattern_test(ticker, parts[0], parts[1], end_date, start_date, train_end, cost_bps, 1))
     df = _load_price_df(ticker, end_date)
     df = df.loc[df.index >= pd.Timestamp(start_date or _rx.DEFAULT_START)]
     df = calculate_weekday_returns(df)
@@ -1189,7 +1214,7 @@ def detect_reversal_events(
 
     Args:
         ticker:           Short BIST ticker, e.g. 'ASELS'.
-        event_type:       Optional exact event type (see "event_types" in the result).
+        event_type:       Optional exact event type (see "event_types" in the result). Types include lower_band_touch, middle_band_test, upper_band_touch, rsi_trough, rsi_peak, supertrend_flip_bullish/bearish, bullish/bearish_kama_cross, kama_slope_turn_up/down, cloud_breakout/breakdown/rejection/entry, support_touch and resistance_touch.
         last_n:           How many of the most recent events to list.
         as_of:            Optional analysis date 'YYYY-MM-DD' (never later than 2026-09-10).
         rsi_state:        Optional 'trough_zone', 'peak_zone' or 'neutral'.
@@ -1222,6 +1247,13 @@ def detect_reversal_events(
     et = event_type.strip().lower().replace(" ", "_").replace("-", "_") if event_type else ""
     if et and et not in all_types and ("bollinger" in et or "band" in et or "bant" in et):
         et = "upper_band_touch" if ("upper" in et or "üst" in et) else "middle_band_test" if ("middle" in et or "orta" in et) else "lower_band_touch"
+        notes.append(f"event_type '{event_type}' was read as '{et}'.")
+    if et and et not in all_types and re.search(r"support|destek", et):
+        et = "support_touch"; notes.append(f"event_type '{event_type}' was read as 'support_touch'.")
+    elif et and et not in all_types and re.search(r"resist|diren", et):
+        et = "resistance_touch"; notes.append(f"event_type '{event_type}' was read as 'resistance_touch'.")
+    elif et and et not in all_types and "kama" in et and "slope" in et:
+        et = "kama_slope_turn_down" if ("down" in et or "fall" in et) else "kama_slope_turn_up"
         notes.append(f"event_type '{event_type}' was read as '{et}'.")
     if et and et not in all_types:
         # tolerate loose names such as 'RSI', 'oversold', 'rsi_below_30', 'supertrend'
@@ -1304,9 +1336,19 @@ def detect_reversal_events(
         for k, g in comparisons.items():
             if g.get("n"):
                 pr = g.get("positive_rate_5d")
+                fell = ""
+                if event_type in ("upper_band_touch", "resistance_touch", "rsi_peak") and g.get("n_complete_5d"):
+                    fell = f"; {g['n_complete_5d'] - g.get('n_positive_5d', 0)} of {g['n_complete_5d']} fell within 5 days (the reversal direction for this event)"
+                avgs = ", ".join(f"{h}d {g['avg_fwd_%dd' % h]*100:.2f}%" for h in (1, 3, 5, 10) if g.get("avg_fwd_%dd" % h) is not None)
+                excl = g.get("n_excluded_incomplete_5d")
+                tail = (f"; average forward return {avgs}" if avgs else "") + \
+                       (f"; {excl} recent events excluded because their 5-day window is not complete by the analysis date" if excl else
+                        ("; no events excluded (all 5-day forward windows are complete by the analysis date)" if excl == 0 else "")) + \
+                       ("; WARNING: small sample" if g["n"] < 10 else "")
                 lines.append(f"{names[k]}: {g['n']} events; {g.get('n_positive_5d', 0)} rose within 5 days"
-                             + (f" ({pr*100:.1f}%)" if pr is not None else "")
-                             + f"; avg 5d forward return {g['avg_fwd_5d']*100:.2f}%" if g.get("avg_fwd_5d") is not None else "")
+                             + (f" ({pr*100:.1f}%)" if pr is not None else "") + fell
+                             + (f" ({g.get('n_complete_5d', g['n'])} with a complete window, {g.get('n_complete_5d', g['n']) - g.get('n_positive_5d', 0)} did not rise)" if g.get("n_complete_5d") else "")
+                             + tail)
             else:
                 lines.append(f"{names[k]}: 0 events")
     return _sanitise({

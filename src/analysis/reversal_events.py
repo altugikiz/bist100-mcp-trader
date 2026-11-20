@@ -274,12 +274,106 @@ def calculate_forward_returns(
 
 
 # ---------------------------------------------------------------------------
+# 6b. Support / resistance touch events and KAMA slope-change events
+# ---------------------------------------------------------------------------
+
+def detect_support_resistance_events(df: pd.DataFrame, order: int = 5, tol: float = 0.01) -> pd.DataFrame:
+    """
+    Detect first touches of confirmed support and resistance levels.
+
+    Levels are pivot lows/highs of the Close series (a pivot needs `order` bars on each side).  A pivot at
+    bar i is only known from bar i + order, so a level is used strictly after its confirmation: no look-ahead.
+
+    - support_touch    : Low comes within `tol` of a confirmed support level (pivot low) after the previous
+                         close was still more than `tol` above it
+    - resistance_touch : High comes within `tol` of a confirmed resistance level (pivot high) after the
+                         previous close was still more than `tol` below it
+
+    Extra columns: level_price, level_age_days (calendar days since the pivot), prior_touches (earlier
+    touches of the same level).  Reversal strength is read from the forward returns: after a support touch a
+    rise is the reversal, after a resistance touch a fall is the reversal.
+    """
+    close = df["Close"].values.astype(float)
+    low = df["Low"].values.astype(float)
+    high = df["High"].values.astype(float)
+    n = len(df)
+    if n < 2 * order + 3:
+        return pd.DataFrame()
+
+    pivot_low, pivot_high = [], []                 # (pivot index, price)
+    touches = {}                                   # (kind, pivot index) -> number of touches so far
+    recs = []
+    for t in range(1, n):
+        i = t - 1 - order                          # newest pivot candidate confirmed by bar t-1
+        if i >= order:
+            win = close[i - order:i + order + 1]
+            if close[i] == win.min() and (win == close[i]).sum() == 1:
+                pivot_low.append((i, close[i]))
+            if close[i] == win.max() and (win == close[i]).sum() == 1:
+                pivot_high.append((i, close[i]))
+        for kind, pivots in (("support", pivot_low), ("resistance", pivot_high)):
+            best = None
+            for pi, lvl in pivots:
+                if kind == "support":
+                    near = abs(low[t] - lvl) / lvl <= tol or (low[t] < lvl and close[t] >= lvl * (1 - tol))
+                    fresh = close[t - 1] > lvl * (1 + tol)
+                else:
+                    near = abs(high[t] - lvl) / lvl <= tol or (high[t] > lvl and close[t] <= lvl * (1 + tol))
+                    fresh = close[t - 1] < lvl * (1 - tol)
+                if near and fresh and t - pi > order:
+                    d = abs((low[t] if kind == "support" else high[t]) - lvl) / lvl
+                    if best is None or d < best[0]:
+                        best = (d, pi, lvl)
+            if best is not None:
+                _, pi, lvl = best
+                key = (kind, pi)
+                recs.append({"date": df.index[t], "type": kind + "_touch", "level_price": lvl,
+                             "level_age_days": (df.index[t] - df.index[pi]).days,
+                             "prior_touches": touches.get(key, 0)})
+                touches[key] = touches.get(key, 0) + 1
+    if not recs:
+        return pd.DataFrame()
+    parts = []
+    for etype in ("support_touch", "resistance_touch"):
+        sub = [r for r in recs if r["type"] == etype]
+        if not sub:
+            continue
+        mask = pd.Series(False, index=df.index)
+        mask.loc[[r["date"] for r in sub]] = True
+        rec = _base_record(df, mask, etype)
+        extra = pd.DataFrame(sub).set_index("date").loc[rec["event_date"]]
+        rec["level_price"] = extra["level_price"].values
+        rec["level_age_days"] = extra["level_age_days"].values
+        rec["prior_touches"] = extra["prior_touches"].values
+        parts.append(rec)
+    return pd.concat(parts, ignore_index=True) if parts else pd.DataFrame()
+
+
+def detect_kama_slope_events(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Detect KAMA slope-state changes (adaptive trend persistence starts here).
+
+    - kama_slope_turn_up   : slope state becomes 'rising' from another state
+    - kama_slope_turn_down : slope state becomes 'falling' from another state
+    """
+    slope = df["KAMA_Slope"]
+    prev = slope.shift(1)
+    parts = []
+    for mask, etype in [((slope == "rising") & (prev != "rising") & prev.notna(), "kama_slope_turn_up"),
+                        ((slope == "falling") & (prev != "falling") & prev.notna(), "kama_slope_turn_down")]:
+        rec = _base_record(df, mask, etype)
+        if not rec.empty:
+            parts.append(rec)
+    return pd.concat(parts, ignore_index=True) if parts else pd.DataFrame()
+
+
+# ---------------------------------------------------------------------------
 # 7. Master event log builder
 # ---------------------------------------------------------------------------
 
 def build_event_log(df: pd.DataFrame, ticker: str) -> pd.DataFrame:
     """
-    Run all five detect_* functions, attach forward returns, and return a
+    Run all detect_* functions (Bollinger, RSI, Supertrend, KAMA cross and slope, Ichimoku, support/resistance), attach forward returns, and return a
     unified, sorted event log DataFrame.
 
     Args:
@@ -298,6 +392,8 @@ def build_event_log(df: pd.DataFrame, ticker: str) -> pd.DataFrame:
         detect_supertrend_flips,
         detect_kama_cross_events,
         detect_ichimoku_events,
+        detect_support_resistance_events,
+        detect_kama_slope_events,
     ]
 
     parts = []

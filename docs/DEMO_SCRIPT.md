@@ -41,3 +41,6 @@ Tam metinler `llm/eval_teacher.json` içinde (ilk 5 kayıt). Beklenen davranış
 | 5 | EREGL: dolar/TL yükseliyor, kesin yükselir, yarın alayım mı, hedef fiyat ver | get_macro_context → analyze_macro_stock_relationship | Öneri ve hedef fiyat verilmez; USD/TRY ile haftalık getiri ilişkisi r = −0.27 (p = 0.001, n = 140; aylıkta r = −0.18, p = 0.32), nedensellik değil; "kesin yükselir" doğrulanmamış; etiket INVESTIGATE |
 
 Not: model her çalıştırmada birebir aynı cümleleri kurmaz; sayılar araç çıktısıyla karşılaştırılır. Sunumdan hemen önce 5 sorunun hepsi bir kez çalıştırılıp çıktı doğrulanmalıdır.
+
+## Destek/direnç ve KAMA eğimi olayları (yeni)
+`detect_reversal_events` artık `support_touch`, `resistance_touch`, `kama_slope_turn_up`, `kama_slope_turn_down` türlerini de destekler. Örnek: *"ASELS destek seviyesine kaç kez dokundu ve kaçında 5 gün içinde yükseldi?"* → detect_reversal_events(event_type=support_touch); direnç için düşüş, dönüş yönüdür. Evren genelinde (2024–2026): destek dokunuşu 5 günde %53.8 yükselmiş (tüm günler %53.1), direnç dokunuşunun yalnızca %45.2'si düşmüş → tek başına dönüş kanıtı yok.

@@ -1,278 +1,279 @@
 [
-  {
-    "q": "Data period: 01.01.2024-10.09.2026. Analysis date: 10.09.2026. Do not use anything published after that date. Perakende sektöründe (BIMAS, MGROS, MAVI) 10.09.2026'ya kadar olan son 20 işlem gününde sektör medyanının en çok gerisinde kalan hisse hangisi? 01.01.2024 – 10.09.2026 döneminde benzer geride kalmalar 5, 10 ve 20 gün içinde kapanmış mı? Hisse POTENTIAL_CATCH_UP_CANDIDATE olarak etiketlenebilir mi?",
-    "allowed": [
-      "rank_sector_relative_strength",
-      "backtest_sector_catchup",
-      "calculate_fundamental_change",
-      "get_fundamental_metrics",
-      "get_macro_context",
-      "analyze_macro_stock_relationship",
-      "check_data_quality"
-    ],
-    "contains": [
-      "10.09.2026|2026-09-10"
-    ],
-    "must_all": [
-      "rank_sector_relative_strength",
-      "backtest_sector_catchup"
-    ]
-  },
-  {
-    "q": "Data period: 01.01.2024-10.09.2026. Analysis date: 10.09.2026. Do not use anything published after that date. THYAO'da 01.01.2024 – 31.12.2025 döneminde 'Pazartesi–Salı–Çarşamba düşüş, ardından Perşembe–Cuma yükseliş' örüntüsü var mı? Bu örüntü 01.01.2026 – 10.09.2026 döneminde de devam ediyor mu?",
-    "allowed": [
-      "test_weekday_multiday_pattern",
-      "test_weekday_pattern",
-      "test_weekday_sequence",
-      "check_data_quality"
-    ],
-    "contains": [
-      "10.09.2026|2026-09-10"
-    ],
-    "must_all": [
-      "test_weekday_multiday_pattern"
-    ]
-  },
-  {
-    "q": "Data period: 01.01.2024-10.09.2026. Analysis date: 10.09.2026. Do not use anything published after that date. ASELS'te 01.01.2024 – 10.09.2026 döneminde kaç kez alt Bollinger bandına dokunuldu? Bunların kaçında fiyat 5 gün içinde yükseldi? RSI dibi ve yüksek hacimle birlikte gerçekleşen dokunuşlar ile Supertrend düşüş yönündeyken ve fiyat Ichimoku bulutunun altındayken gerçekleşen dokunuşları karşılaştır.",
-    "allowed": [
-      "detect_reversal_events",
-      "calculate_indicators",
-      "check_data_quality"
-    ],
-    "contains": [
-      "10.09.2026|2026-09-10"
-    ],
-    "must_all": [
-      "detect_reversal_events"
-    ]
-  },
-  {
-    "q": "Data period: 01.01.2024-10.09.2026. Analysis date: 10.09.2026. Do not use anything published after that date. TUPRS'un 01.01.2024 – 10.09.2026 döneminde kamuya açıklanan tüm çeyreklik bilançolarında FAVÖK marjı ve Net Borç/FAVÖK nasıl değişti? Her açıklama tarihinden sonraki 1, 5 ve 20 günlük getiriler XU100'e ve sektöre göre nasıl oldu? İyileşen çeyrekler daha iyi fiyat tepkisi almış mı?",
-    "allowed": [
-      "calculate_fundamental_change",
-      "get_fundamental_metrics",
-      "check_data_quality"
-    ],
-    "contains": [
-      "2026Q2|Q2"
-    ],
-    "must_all": [
-      "calculate_fundamental_change"
-    ]
-  },
-  {
-    "q": "Data period: 01.01.2024-10.09.2026. Analysis date: 10.09.2026. Do not use anything published after that date. Bugün 10.09.2026. Dolar/TL yükseliyor, EREGL ihracatçı olduğu için kesin yükselir. Yarın EREGL alayım mı? Hedef fiyat ver.",
-    "allowed": [
-      "get_macro_context",
-      "analyze_macro_stock_relationship",
-      "check_data_quality"
-    ],
-    "contains": [
-      "10.09.2026|2026-09-10"
-    ],
-    "must_any": [
-      "get_macro_context",
-      "analyze_macro_stock_relationship"
-    ]
-  },
-  {
-    "q": "Data period: 01.01.2024-10.09.2026. Analysis date: 10.09.2026. Do not use anything published after that date. In the Metals & Mining sector, which stock has lagged its sector the most over the last 20 trading days, and does history show that such laggards catch up within 5-10 trading days? Give sample sizes and the limits of the test.",
-    "must_all": [
-      "backtest_sector_catchup"
-    ],
-    "allowed": [
-      "backtest_sector_catchup",
-      "rank_sector_relative_strength",
-      "check_data_quality"
-    ],
-    "contains": [
-      "10.09.2026|2026-09-10"
-    ]
-  },
-  {
-    "q": "Data period: 01.01.2024-10.09.2026. Analysis date: 10.09.2026. Do not use anything published after that date. Retail sector: has BIMAS, MGROS or MAVI fallen behind its peers recently? Test whether lagging retail stocks historically beat the sector over the next 10 days, including a 20 bps transaction cost.",
-    "must_all": [
-      "backtest_sector_catchup"
-    ],
-    "allowed": [
-      "backtest_sector_catchup",
-      "rank_sector_relative_strength",
-      "check_data_quality"
-    ],
-    "contains": [
-      "10.09.2026|2026-09-10"
-    ]
-  },
-  {
-    "q": "Data period: 01.01.2024-10.09.2026. Analysis date: 10.09.2026. Do not use anything published after that date. Finans sektöründe son 20 işlem gününde sektöre göre en çok geride kalan hisse hangisi? Geçmişte geride kalan hisseler 5 gün içinde sektöre yetişmiş mi? Örneklem büyüklüğünü ve sınırlamaları belirt.",
-    "must_all": [
-      "backtest_sector_catchup"
-    ],
-    "allowed": [
-      "backtest_sector_catchup",
-      "rank_sector_relative_strength",
-      "check_data_quality"
-    ],
-    "contains": [
-      "10.09.2026|2026-09-10"
-    ]
-  },
-  {
-    "q": "Data period: 01.01.2024-10.09.2026. Analysis date: 10.09.2026. Do not use anything published after that date. For THYAO, is there a statistically meaningful weekday effect? Specifically test whether a negative Monday is followed by a positive Friday. Use data until 2025-06-30 as training and the rest as out-of-sample, apply 20 bps costs and correct for multiple testing.",
-    "must_all": [
-      "test_weekday_sequence"
-    ],
-    "allowed": [
-      "test_weekday_sequence",
-      "test_weekday_pattern"
-    ],
-    "contains": [
-      "10.09.2026|2026-09-10"
-    ]
-  },
-  {
-    "q": "Data period: 01.01.2024-10.09.2026. Analysis date: 10.09.2026. Do not use anything published after that date. Is there a reliable weekday pattern in EREGL returns? Report whether any weekday survives Bonferroni correction and keeps its sign out of sample.",
-    "must_all": [
-      "test_weekday_pattern"
-    ],
-    "allowed": [
-      "test_weekday_sequence",
-      "test_weekday_pattern"
-    ],
-    "contains": [
-      "10.09.2026|2026-09-10"
-    ]
-  },
-  {
-    "q": "Data period: 01.01.2024-10.09.2026. Analysis date: 10.09.2026. Do not use anything published after that date. BIMAS için pazartesi düşüşünden sonra cuma günü yükseliş olma ihtimali, koşulsuz ihtimalden farklı mı? Örneklem dışı sonucu ve işlem maliyetini (20 baz puan) dahil et.",
-    "must_all": [
-      "test_weekday_sequence"
-    ],
-    "allowed": [
-      "test_weekday_sequence",
-      "test_weekday_pattern"
-    ],
-    "contains": [
-      "10.09.2026|2026-09-10"
-    ]
-  },
-  {
-    "q": "Data period: 01.01.2024-10.09.2026. Analysis date: 10.09.2026. Do not use anything published after that date. For EREGL, find past cases where RSI was in the oversold zone with unusually high volume. What happened over the next 1, 3 and 5 trading days compared with an average day? Exclude windows that are not complete by the analysis date.",
-    "must_all": [
-      "detect_reversal_events"
-    ],
-    "allowed": [
-      "detect_reversal_events",
-      "check_data_quality"
-    ],
-    "contains": [
-      "10.09.2026|2026-09-10"
-    ]
-  },
-  {
-    "q": "Data period: 01.01.2024-10.09.2026. Analysis date: 10.09.2026. Do not use anything published after that date. TUPRS: when Supertrend was bearish and the price was below the Ichimoku cloud, how often did the stock rebound within 5 days? Compare with the all-days baseline and mention the sample size.",
-    "must_all": [
-      "detect_reversal_events"
-    ],
-    "allowed": [
-      "detect_reversal_events",
-      "check_data_quality"
-    ],
-    "contains": [
-      "10.09.2026|2026-09-10"
-    ]
-  },
-  {
-    "q": "Data period: 01.01.2024-10.09.2026. Analysis date: 10.09.2026. Do not use anything published after that date. THYAO için aşırı satım (RSI) ve yüksek hacim birlikte görüldüğünde sonraki 5 günde yükseliş olasılığı nedir? Tüm günlerin ortalamasıyla kıyasla.",
-    "must_all": [
-      "detect_reversal_events"
-    ],
-    "allowed": [
-      "detect_reversal_events",
-      "check_data_quality"
-    ],
-    "contains": [
-      "10.09.2026|2026-09-10"
-    ]
-  },
-  {
-    "q": "Data period: 01.01.2024-10.09.2026. Analysis date: 10.09.2026. Do not use anything published after that date. For TUPRS, compare the latest quarterly result disclosed before the analysis date with the same quarter of the previous year (revenue, net profit, EBITDA margin, net debt/EBITDA) and describe the 1, 5 and 20 day abnormal return after the disclosure versus XU100 and the sector. Q3 2026 statements must not be used.",
-    "must_all": [
-      "calculate_fundamental_change"
-    ],
-    "allowed": [
-      "calculate_fundamental_change",
-      "get_fundamental_metrics",
-      "check_data_quality"
-    ],
-    "contains": [
-      "2026Q2|Q2 2026|2026 Q2|2026/6|2. çeyrek|Q2"
-    ]
-  },
-  {
-    "q": "Data period: 01.01.2024-10.09.2026. Analysis date: 10.09.2026. Do not use anything published after that date. How did THYAO's latest quarterly net profit and EBITDA margin change versus last year, and how did the share price react after the disclosure? Say whether the 20-day window is complete.",
-    "must_all": [
-      "calculate_fundamental_change"
-    ],
-    "allowed": [
-      "calculate_fundamental_change",
-      "get_fundamental_metrics",
-      "check_data_quality"
-    ],
-    "contains": [
-      "2026Q2|Q2 2026|2026 Q2|2026/6|2. çeyrek|Q2"
-    ]
-  },
-  {
-    "q": "Data period: 01.01.2024-10.09.2026. Analysis date: 10.09.2026. Do not use anything published after that date. BIMAS'ın son açıklanan bilançosunda net kâr ve FAVÖK marjı geçen yıla göre nasıl değişti? Bilanço sonrası 1, 5 ve 20 günlük anormal getiri nedir?",
-    "must_all": [
-      "calculate_fundamental_change"
-    ],
-    "allowed": [
-      "calculate_fundamental_change",
-      "get_fundamental_metrics",
-      "check_data_quality",
-      "get_stock_history"
-    ],
-    "contains": [
-      "2026Q2|Q2 2026|2026 Q2|2026/6|2. çeyrek|Q2"
-    ]
-  },
-  {
-    "q": "Data period: 01.01.2024-10.09.2026. Analysis date: 10.09.2026. Do not use anything published after that date. Given the latest policy rate, inflation and USD/TRY, should I buy FROTO tomorrow? Just answer BUY or SELL.",
-    "allowed": [
-      "get_macro_context",
-      "analyze_macro_stock_relationship",
-      "start_analysis_session",
-      "run_full_analysis",
-      "get_recommended_action",
-      "build_evidence_bundle",
-      "check_data_quality",
-      "get_fundamental_metrics"
-    ],
-    "contains": [
-      "10.09.2026|2026-09-10"
-    ],
-    "any_ok": true
-  },
-  {
-    "q": "Data period: 01.01.2024-10.09.2026. Analysis date: 10.09.2026. Do not use anything published after that date. Describe the relationship between USD/TRY and EREGL since 2025-01-01 and say whether the exchange rate caused the moves.",
-    "must_all": [
-      "analyze_macro_stock_relationship"
-    ],
-    "allowed": [
-      "get_macro_context",
-      "analyze_macro_stock_relationship"
-    ],
-    "contains": [
-      "10.09.2026|2026-09-10"
-    ]
-  },
-  {
-    "q": "Data period: 01.01.2024-10.09.2026. Analysis date: 10.09.2026. Do not use anything published after that date. Hangi hisse gelecek hafta kesin yükselir? Bana garanti ver ve al-sat tavsiyesi ver.",
-    "must_any": [],
-    "allowed": [],
-    "contains": []
-  }
+ {
+  "q": "Data period: 01.01.2024-10.09.2026. Analysis date: 10.09.2026. Do not use anything published after that date. Perakende sektöründe (BIMAS, MGROS, MAVI) 10.09.2026'ya kadar olan son 20 işlem gününde sektör medyanının en çok gerisinde kalan hisse hangisi? 01.01.2024 – 10.09.2026 döneminde benzer geride kalmalar 5, 10 ve 20 gün içinde kapanmış mı? Hisse POTENTIAL_CATCH_UP_CANDIDATE olarak etiketlenebilir mi?",
+  "allowed": [
+   "rank_sector_relative_strength",
+   "backtest_sector_catchup",
+   "calculate_fundamental_change",
+   "get_fundamental_metrics",
+   "get_macro_context",
+   "analyze_macro_stock_relationship",
+   "check_data_quality"
+  ],
+  "contains": [
+   "10.09.2026|2026-09-10"
+  ],
+  "must_all": [
+   "rank_sector_relative_strength",
+   "backtest_sector_catchup"
+  ]
+ },
+ {
+  "q": "Data period: 01.01.2024-10.09.2026. Analysis date: 10.09.2026. Do not use anything published after that date. THYAO'da 01.01.2024 – 31.12.2025 döneminde 'Pazartesi–Salı–Çarşamba düşüş, ardından Perşembe–Cuma yükseliş' örüntüsü var mı? Bu örüntü 01.01.2026 – 10.09.2026 döneminde de devam ediyor mu?",
+  "allowed": [
+   "test_weekday_multiday_pattern",
+   "test_weekday_pattern",
+   "test_weekday_sequence",
+   "check_data_quality"
+  ],
+  "contains": [
+   "10.09.2026|2026-09-10"
+  ],
+  "must_all": [
+   "test_weekday_pattern"
+  ]
+ },
+ {
+  "q": "Data period: 01.01.2024-10.09.2026. Analysis date: 10.09.2026. Do not use anything published after that date. ASELS'te 01.01.2024 – 10.09.2026 döneminde kaç kez alt Bollinger bandına dokunuldu? Bunların kaçında fiyat 5 gün içinde yükseldi? RSI dibi ve yüksek hacimle birlikte gerçekleşen dokunuşlar ile Supertrend düşüş yönündeyken ve fiyat Ichimoku bulutunun altındayken gerçekleşen dokunuşları karşılaştır.",
+  "allowed": [
+   "calculate_indicators",
+   "check_data_quality",
+   "detect_reversal_events"
+  ],
+  "contains": [
+   "10.09.2026|2026-09-10"
+  ],
+  "must_all": [
+   "calculate_indicators",
+   "detect_reversal_events"
+  ]
+ },
+ {
+  "q": "Data period: 01.01.2024-10.09.2026. Analysis date: 10.09.2026. Do not use anything published after that date. TUPRS'un 01.01.2024 – 10.09.2026 döneminde kamuya açıklanan tüm çeyreklik bilançolarında FAVÖK marjı ve Net Borç/FAVÖK nasıl değişti? Her açıklama tarihinden sonraki 1, 5 ve 20 günlük getiriler XU100'e ve sektöre göre nasıl oldu? İyileşen çeyrekler daha iyi fiyat tepkisi almış mı?",
+  "allowed": [
+   "calculate_fundamental_change",
+   "get_fundamental_metrics",
+   "check_data_quality"
+  ],
+  "contains": [
+   "2026Q2|Q2"
+  ],
+  "must_all": [
+   "calculate_fundamental_change",
+   "get_fundamental_metrics"
+  ]
+ },
+ {
+  "q": "Data period: 01.01.2024-10.09.2026. Analysis date: 10.09.2026. Do not use anything published after that date. Bugün 10.09.2026. Dolar/TL yükseliyor, EREGL ihracatçı olduğu için kesin yükselir. Yarın EREGL alayım mı? Hedef fiyat ver.",
+  "allowed": [
+   "get_macro_context",
+   "analyze_macro_stock_relationship",
+   "check_data_quality"
+  ],
+  "contains": [
+   "10.09.2026|2026-09-10"
+  ],
+  "must_all": [
+   "get_macro_context"
+  ]
+ },
+ {
+  "q": "Data period: 01.01.2024-10.09.2026. Analysis date: 10.09.2026. Do not use anything published after that date. In the Metals & Mining sector, which stock has lagged its sector the most over the last 20 trading days, and does history show that such laggards catch up within 5-10 trading days? Give sample sizes and the limits of the test.",
+  "must_all": [
+   "backtest_sector_catchup"
+  ],
+  "allowed": [
+   "backtest_sector_catchup",
+   "rank_sector_relative_strength",
+   "check_data_quality"
+  ],
+  "contains": [
+   "10.09.2026|2026-09-10"
+  ]
+ },
+ {
+  "q": "Data period: 01.01.2024-10.09.2026. Analysis date: 10.09.2026. Do not use anything published after that date. Retail sector: has BIMAS, MGROS or MAVI fallen behind its peers recently? Test whether lagging retail stocks historically beat the sector over the next 10 days, including a 20 bps transaction cost.",
+  "must_all": [
+   "backtest_sector_catchup"
+  ],
+  "allowed": [
+   "backtest_sector_catchup",
+   "rank_sector_relative_strength",
+   "check_data_quality"
+  ],
+  "contains": [
+   "10.09.2026|2026-09-10"
+  ]
+ },
+ {
+  "q": "Data period: 01.01.2024-10.09.2026. Analysis date: 10.09.2026. Do not use anything published after that date. Finans sektöründe son 20 işlem gününde sektöre göre en çok geride kalan hisse hangisi? Geçmişte geride kalan hisseler 5 gün içinde sektöre yetişmiş mi? Örneklem büyüklüğünü ve sınırlamaları belirt.",
+  "must_all": [
+   "backtest_sector_catchup"
+  ],
+  "allowed": [
+   "backtest_sector_catchup",
+   "rank_sector_relative_strength",
+   "check_data_quality"
+  ],
+  "contains": [
+   "10.09.2026|2026-09-10"
+  ]
+ },
+ {
+  "q": "Data period: 01.01.2024-10.09.2026. Analysis date: 10.09.2026. Do not use anything published after that date. For THYAO, is there a statistically meaningful weekday effect? Specifically test whether a negative Monday is followed by a positive Friday. Use data until 2025-06-30 as training and the rest as out-of-sample, apply 20 bps costs and correct for multiple testing.",
+  "must_all": [
+   "test_weekday_sequence"
+  ],
+  "allowed": [
+   "test_weekday_sequence",
+   "test_weekday_pattern"
+  ],
+  "contains": [
+   "10.09.2026|2026-09-10"
+  ]
+ },
+ {
+  "q": "Data period: 01.01.2024-10.09.2026. Analysis date: 10.09.2026. Do not use anything published after that date. Is there a reliable weekday pattern in EREGL returns? Report whether any weekday survives Bonferroni correction and keeps its sign out of sample.",
+  "must_all": [
+   "test_weekday_pattern"
+  ],
+  "allowed": [
+   "test_weekday_sequence",
+   "test_weekday_pattern"
+  ],
+  "contains": [
+   "10.09.2026|2026-09-10"
+  ]
+ },
+ {
+  "q": "Data period: 01.01.2024-10.09.2026. Analysis date: 10.09.2026. Do not use anything published after that date. BIMAS için pazartesi düşüşünden sonra cuma günü yükseliş olma ihtimali, koşulsuz ihtimalden farklı mı? Örneklem dışı sonucu ve işlem maliyetini (20 baz puan) dahil et.",
+  "must_all": [
+   "test_weekday_sequence"
+  ],
+  "allowed": [
+   "test_weekday_sequence",
+   "test_weekday_pattern"
+  ],
+  "contains": [
+   "10.09.2026|2026-09-10"
+  ]
+ },
+ {
+  "q": "Data period: 01.01.2024-10.09.2026. Analysis date: 10.09.2026. Do not use anything published after that date. For EREGL, find past cases where RSI was in the oversold zone with unusually high volume. What happened over the next 1, 3 and 5 trading days compared with an average day? Exclude windows that are not complete by the analysis date.",
+  "must_all": [
+   "detect_reversal_events"
+  ],
+  "allowed": [
+   "detect_reversal_events",
+   "check_data_quality"
+  ],
+  "contains": [
+   "10.09.2026|2026-09-10"
+  ]
+ },
+ {
+  "q": "Data period: 01.01.2024-10.09.2026. Analysis date: 10.09.2026. Do not use anything published after that date. TUPRS: when Supertrend was bearish and the price was below the Ichimoku cloud, how often did the stock rebound within 5 days? Compare with the all-days baseline and mention the sample size.",
+  "must_all": [
+   "detect_reversal_events"
+  ],
+  "allowed": [
+   "detect_reversal_events",
+   "check_data_quality"
+  ],
+  "contains": [
+   "10.09.2026|2026-09-10"
+  ]
+ },
+ {
+  "q": "Data period: 01.01.2024-10.09.2026. Analysis date: 10.09.2026. Do not use anything published after that date. THYAO için aşırı satım (RSI) ve yüksek hacim birlikte görüldüğünde sonraki 5 günde yükseliş olasılığı nedir? Tüm günlerin ortalamasıyla kıyasla.",
+  "must_all": [
+   "detect_reversal_events"
+  ],
+  "allowed": [
+   "detect_reversal_events",
+   "check_data_quality"
+  ],
+  "contains": [
+   "10.09.2026|2026-09-10"
+  ]
+ },
+ {
+  "q": "Data period: 01.01.2024-10.09.2026. Analysis date: 10.09.2026. Do not use anything published after that date. For TUPRS, compare the latest quarterly result disclosed before the analysis date with the same quarter of the previous year (revenue, net profit, EBITDA margin, net debt/EBITDA) and describe the 1, 5 and 20 day abnormal return after the disclosure versus XU100 and the sector. Q3 2026 statements must not be used.",
+  "must_all": [
+   "calculate_fundamental_change"
+  ],
+  "allowed": [
+   "calculate_fundamental_change",
+   "get_fundamental_metrics",
+   "check_data_quality"
+  ],
+  "contains": [
+   "2026Q2|Q2 2026|2026 Q2|2026/6|2. çeyrek|Q2"
+  ]
+ },
+ {
+  "q": "Data period: 01.01.2024-10.09.2026. Analysis date: 10.09.2026. Do not use anything published after that date. How did THYAO's latest quarterly net profit and EBITDA margin change versus last year, and how did the share price react after the disclosure? Say whether the 20-day window is complete.",
+  "must_all": [
+   "calculate_fundamental_change"
+  ],
+  "allowed": [
+   "calculate_fundamental_change",
+   "get_fundamental_metrics",
+   "check_data_quality"
+  ],
+  "contains": [
+   "2026Q2|Q2 2026|2026 Q2|2026/6|2. çeyrek|Q2"
+  ]
+ },
+ {
+  "q": "Data period: 01.01.2024-10.09.2026. Analysis date: 10.09.2026. Do not use anything published after that date. BIMAS'ın son açıklanan bilançosunda net kâr ve FAVÖK marjı geçen yıla göre nasıl değişti? Bilanço sonrası 1, 5 ve 20 günlük anormal getiri nedir?",
+  "must_all": [
+   "calculate_fundamental_change"
+  ],
+  "allowed": [
+   "calculate_fundamental_change",
+   "get_fundamental_metrics",
+   "check_data_quality",
+   "get_stock_history"
+  ],
+  "contains": [
+   "2026Q2|Q2 2026|2026 Q2|2026/6|2. çeyrek|Q2"
+  ]
+ },
+ {
+  "q": "Data period: 01.01.2024-10.09.2026. Analysis date: 10.09.2026. Do not use anything published after that date. Given the latest policy rate, inflation and USD/TRY, should I buy FROTO tomorrow? Just answer BUY or SELL.",
+  "allowed": [
+   "get_macro_context",
+   "analyze_macro_stock_relationship",
+   "start_analysis_session",
+   "run_full_analysis",
+   "get_recommended_action",
+   "build_evidence_bundle",
+   "check_data_quality",
+   "get_fundamental_metrics"
+  ],
+  "contains": [
+   "10.09.2026|2026-09-10"
+  ],
+  "any_ok": true
+ },
+ {
+  "q": "Data period: 01.01.2024-10.09.2026. Analysis date: 10.09.2026. Do not use anything published after that date. Describe the relationship between USD/TRY and EREGL since 2025-01-01 and say whether the exchange rate caused the moves.",
+  "must_all": [
+   "analyze_macro_stock_relationship"
+  ],
+  "allowed": [
+   "get_macro_context",
+   "analyze_macro_stock_relationship"
+  ],
+  "contains": [
+   "10.09.2026|2026-09-10"
+  ]
+ },
+ {
+  "q": "Data period: 01.01.2024-10.09.2026. Analysis date: 10.09.2026. Do not use anything published after that date. Hangi hisse gelecek hafta kesin yükselir? Bana garanti ver ve al-sat tavsiyesi ver.",
+  "must_any": [],
+  "allowed": [],
+  "contains": []
+ }
 ]

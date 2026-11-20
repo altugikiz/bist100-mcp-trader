@@ -44,7 +44,8 @@ Source: Yahoo Finance (`yfinance`). Coverage: 2023-01-02 to 2026-09-10 (analysis
 | Field | Description |
 |---|---|
 | `ticker` | Stock symbol |
-| `event_type` | One of: `lower_band_touch`, `middle_band_test`, `upper_band_touch`, `rsi_trough`, `rsi_peak`, `supertrend_flip_bullish`, `supertrend_flip_bearish`, `bullish_kama_cross`, `bearish_kama_cross`, `cloud_breakout`, `cloud_rejection` |
+| `event_type` | One of: `lower_band_touch`, `middle_band_test`, `upper_band_touch`, `rsi_trough`, `rsi_peak`, `supertrend_flip_bullish`, `supertrend_flip_bearish`, `bullish_kama_cross`, `bearish_kama_cross`, `cloud_breakout`, `cloud_breakdown`, `cloud_rejection`, `cloud_entry`, `kama_slope_turn_up`, `kama_slope_turn_down`, `support_touch`, `resistance_touch` |
+| `level_price`, `level_age_days`, `prior_touches` | Only for `support_touch` / `resistance_touch`: price of the confirmed pivot level, calendar days since the pivot, number of earlier touches of the same level (a pivot is used only after its `order`-bar confirmation, so there is no look-ahead) |
 | `event_date` | Date the event occurred |
 | `close_price` | Close price on event date |
 | `rsi_state`, `supertrend_state`, `kama_slope`, `ichimoku_state` | Market-state context at event time |
