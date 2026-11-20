@@ -43,6 +43,7 @@ _INDEX_NAMES = re.compile(r"\b(BIST[\s-]?(100|30|50)|XU(100|030)|top[\s-]?100)\b
 
 def unsupported_numbers(answer, tool_text):
     answer = _INDEX_NAMES.sub(" ", answer)   # index names such as "BIST 100" are labels, not figures
+    answer = re.sub(r"\b\d{1,2}\.\d{1,2}(?:\.\d{2,4})?\b|\b\d{4}-\d{2}-\d{2}\b", " ", answer)   # dates are not measured values
     pool = _numbers(tool_text)
     bad, total = 0, 0
     for x in _numbers(answer):
@@ -52,6 +53,15 @@ def unsupported_numbers(answer, tool_text):
         if not any(abs(x - p) <= 0.006 * max(abs(p), 1e-9) or abs(x - p * 100) <= 0.006 * max(abs(p * 100), 1e-9) for p in pool):
             bad += 1
     return bad, total
+
+
+_NEG_TR = re.compile(r"(?:POTENTIAL_CATCH_UP_CANDIDATE|TECHNICAL_REVERSAL_CANDIDATE|FUNDAMENTAL_IMPROVEMENT_CANDIDATE)"
+                     r"[^.\n]{0,120}?(?:DESTEKLENMED|DESTEKLENM[Iİ]YOR|VER[Iİ]LEMEZ|VER[Iİ]LEMED|VER[Iİ]LMED|YAPILAMAD|ETİKETLENEMEZ|ETIKETLENEMEZ|D[EE]ĞİL|DEĞ[Iİ]L|NOT SUPPORTED)")
+
+
+def strip_negated_labels(up_text):
+    """Remove (upper-cased) label mentions that the answer itself negates, e.g. 'etiketi desteklenmedi'."""
+    return _NEG_TR.sub("", up_text)
 
 
 def _is_tr(question):
@@ -130,6 +140,7 @@ def check_and_repair(question, answer, trace):
     # ignore the label where the answer itself negates it or where an earlier correction already mentions it
     up_lbl = re.sub(r"(CORRECTION|DÜZELTME):[^\n]*", "", up)
     up_lbl = re.sub(r"(NOT MEET|NOT QUALIFY|NOT LABELED|NOT BE LABELED|NOT SUPPORT|NO EVIDENCE)[^.\n]{0,120}", "", up_lbl)
+    up_lbl = strip_negated_labels(up_lbl)
     already_corrected = re.search(r"not supported by tool output|araç çıktısıyla desteklenmiyor", answer)
     cand = [l for l in ("POTENTIAL_CATCH_UP_CANDIDATE", "TECHNICAL_REVERSAL_CANDIDATE", "FUNDAMENTAL_IMPROVEMENT_CANDIDATE")
             if l in up_lbl and l != final_action and not already_corrected]

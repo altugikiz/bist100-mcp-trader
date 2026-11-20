@@ -47,8 +47,9 @@ def unsupported_conclusion(answer: str, trace: list) -> bool:
     for t in trace:
         if t["tool"] == "get_recommended_action":
             harness |= set(re.findall(r'"action\\*"\s*:\s*\\*"([A-Z_]+)', t["output"]))
+    shown = guard.strip_negated_labels(re.sub(r"(DÜZELTME|CORRECTION):[^\n]*", "", answer.upper()))
     said = {a for a in guard.ALLOWED_ACTIONS if a not in ("INVESTIGATE", "ANALYSIS_UNSAFE")
-            and re.search(rf"\b{a}\b", answer)}
+            and re.search(rf"\b{a}\b", shown)}
     return bool(said - harness)
 
 
