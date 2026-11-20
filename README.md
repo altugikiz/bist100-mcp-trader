@@ -1,6 +1,6 @@
 # BIST 100 MCP Trader
 
-A CSE-481 Engineering Economics term project covering a **30-stock BIST 100 universe** across four mandatory research scenarios: technical/fundamental scoring, sector-relative and macro/news context layers, walk-forward backtesting with transaction costs, and a stateful MCP agent harness. The project builds a point-in-time fundamental pipeline (anti-look-ahead), curated news-event reaction analysis, and a five-version harness experiment (A–E) documenting how forcing tool use cuts numerical hallucination (60.2% → 3.7% unsupported numbers with the local Qwen3 8B model). The entire analysis stack is exposed as an **MCP (Model Context Protocol) AI agent** with 22 tool endpoints. The project runs its **own local LLM** (Ollama + Qwen3 8B, custom `bist-analyst` model) that drives full evidence-bundle analysis sessions — with human review and JSON audit logging — through structured tool calls; Claude Desktop can use the same server too.
+A CSE-481 Engineering Economics term project covering a **30-stock BIST 100 universe** across four mandatory research scenarios: technical/fundamental scoring, sector-relative and macro/news context layers, walk-forward backtesting with transaction costs, and a stateful MCP agent harness. The project builds a point-in-time fundamental pipeline (anti-look-ahead), curated news-event reaction analysis, and a five-version harness experiment (A–E) documenting how forcing tool use cuts numerical hallucination (60.2% → 3.7% unsupported numbers with the local Qwen3 8B model). The entire analysis stack is exposed as an **MCP (Model Context Protocol) AI agent** with 23 tool endpoints. The project runs its **own local LLM** (Ollama + Qwen3 8B, custom `bist-analyst` model) that drives full evidence-bundle analysis sessions — with human review and JSON audit logging — through structured tool calls; Claude Desktop can use the same server too.
 
 ---
 
@@ -14,7 +14,7 @@ A CSE-481 Engineering Economics term project covering a **30-stock BIST 100 univ
 - **Backtesting engine** — chronological backtest with look-ahead-bias prevention, equity curves, Sharpe ratio, max drawdown, and win rate
 - **Sensitivity analysis** — sweep over BUY thresholds and score weight configurations to find the optimal parameter set
 - **Optional ML prediction** — Logistic Regression and Random Forest classifiers with chronological train/test split
-- **MCP AI agent** — 22 tool endpoints exposed via FastMCP over stdio; supports full evidence-bundle sessions with human review and JSON audit logging
+- **MCP AI agent** — 23 tool endpoints exposed via FastMCP over stdio; supports full evidence-bundle sessions with human review and JSON audit logging
 - **Own local LLM** — Ollama + Qwen3 8B (`bist-analyst`), agent loop and evaluation scripts in `llm/`
 
 ---
@@ -69,7 +69,7 @@ bist100-mcp-trader/
 │   │   ├── decision_log.py           # JSON audit log: record, load, replay, human review
 │   │   └── harness_experiments.py    # Harness versions A–E comparison experiment
 │   └── mcptools/
-│       └── mcp_server.py             # MCP server exposing 22 tools via FastMCP (stdio)
+│       └── mcp_server.py             # MCP server exposing 23 tools via FastMCP (stdio)
 ├── requirements.txt
 └── README.md
 ```
