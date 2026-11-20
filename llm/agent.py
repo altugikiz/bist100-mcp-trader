@@ -237,6 +237,7 @@ def _run_agent(question: str, model: str, think: bool = False,
     trace, stats = [], {"tool_calls": 0, "invalid_calls": 0, "no_tool_text_replies": 0}
 
     nudged = False
+    seen_calls = set()
     plan_nudged = False
     desc_nudged = False
     final_only = False   # set once the analysis is complete or the model starts looping
@@ -349,6 +350,14 @@ def _run_agent(question: str, model: str, think: bool = False,
                 for k in _STATE_FILTERS:
                     if args.pop(k, None) is not None:
                         stats["filters_dropped"] = stats.get("filters_dropped", 0) + 1
+            sig = (name, json.dumps(args, sort_keys=True, default=str))
+            if sig in seen_calls:
+                # Exact repeat of an earlier call in this run: do not execute or count it again
+                stats["duplicate_calls_skipped"] = stats.get("duplicate_calls_skipped", 0) + 1
+                messages.append({"role": "tool", "tool_name": name,
+                                 "content": "Duplicate call skipped: the same call was already made, use its earlier result."})
+                continue
+            seen_calls.add(sig)
             stats["tool_calls"] += 1
             err = None if name in by_name else f"unknown tool '{name}'"
             err = err or _validate_args(by_name[name], args)

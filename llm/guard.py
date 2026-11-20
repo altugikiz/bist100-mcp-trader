@@ -25,14 +25,14 @@ _ADVICE = re.compile(
 _DISCLAIMER = re.compile(r"(not investment advice|yatırım tavsiyesi değildir|not a recommendation)", re.I)
 _TAIL = {"tr": "Bu, eğitim amaçlı tarihsel bir analizdir; yatırım tavsiyesi değildir. Nihai karar insan incelemesine aittir.",
          "en": "This is an educational, historical analysis and not investment advice; the final decision belongs to a human reviewer."}
-_NUM = re.compile(r"-?\d+(?:[.,]\d+)?")
+_NUM = re.compile(r"-?\d{1,3}(?:,\d{3})+(?:\.\d+)?|-?\d+(?:[.,]\d+)?")
 
 
 def _numbers(text):
     out = []
     for tok in _NUM.findall(text):
         try:
-            out.append(float(tok.replace(",", ".")))
+            out.append(float(tok.replace(",", "") if re.fullmatch(r"-?\d{1,3}(?:,\d{3})+(?:\.\d+)?", tok) else tok.replace(",", ".")))
         except ValueError:
             pass
     return out

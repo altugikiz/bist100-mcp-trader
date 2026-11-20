@@ -25,14 +25,14 @@ import agent  # noqa: E402
 import guard  # noqa: E402
 
 _ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-_NUM = re.compile(r"-?\d+(?:[.,]\d+)?")
+_NUM = re.compile(r"-?\d{1,3}(?:,\d{3})+(?:\.\d+)?|-?\d+(?:[.,]\d+)?")
 
 
 def _numbers(text: str) -> list[float]:
     out = []
     for tok in _NUM.findall(text):
         try:
-            out.append(float(tok.replace(",", ".")))
+            out.append(float(tok.replace(",", "") if re.fullmatch(r"-?\d{1,3}(?:,\d{3})+(?:\.\d+)?", tok) else tok.replace(",", ".")))
         except ValueError:
             pass
     return out
