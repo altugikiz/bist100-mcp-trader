@@ -267,12 +267,25 @@ def _run_agent(question: str, model: str, think: bool = False,
                                  "question's language, quoting the exact numbers from the tool results above."})
                 continue
             used = {t["tool"] for t in trace}
+            named = {w for w in re.findall(r"[A-Z]{4,6}", question) if w in set(getattr(load_server(), "UNIVERSE", {}).get("ticker", []))} \
+                if hasattr(load_server(), "UNIVERSE") else set()
+            if (re.search(r"hedef fiyat|price target|should i buy|al[ae]y[ıi]m m[ıi]|sat[ae]y[ıi]m m[ıi]", question, re.I)
+                    and len(named) == 1 and "get_macro_context" not in used and not stats.get("macro_nudge")):
+                # Buy/target-price request naming a stock: the safe answer is built on macro tool evidence, not a bare refusal
+                stats["macro_nudge"] = 1
+                messages.append({"role": "user", "content":
+                                 "Do not answer yet. Call get_macro_context (start_date 2024-01-01, end_date 2026-09-10) and "
+                                 f"analyze_macro_stock_relationship for {next(iter(named))} first, then answer with the historical "
+                                 "relationship, no recommendation, no price target, and end with INVESTIGATE."})
+                continue
             if ("calculate_fundamental_change" in used and "get_fundamental_metrics" not in used
                     and "get_fundamental_metrics" in by_name and not stats.get("metrics_nudge")):
                 stats["metrics_nudge"] = 1
                 messages.append({"role": "user", "content":
                                  "Before answering, also call get_fundamental_metrics for the same ticker (period 2026Q2) "
-                                 "to confirm the latest reported EBITDA margin and Net Debt/EBITDA, then write the answer."})
+                                 "to confirm the latest quarter, then write the answer: list EVERY quarter from quarterly_history of the earlier "
+                                 "calculate_fundamental_change result (EBITDA margin, Net Debt/EBITDA, 1/5/20-day abnormal returns), "
+                                 "flag the Q2 2026 20-day return as incomplete, make no causal claim, and use only numbers printed by the tools."})
                 continue
             if not (msg.get("content") or "").strip() and trace and not nudged:
                 # Small models sometimes return an empty reply right after tool output
@@ -367,7 +380,7 @@ def _run_agent(question: str, model: str, think: bool = False,
                             for t in trace)
         # A research tool that already returned its plain-language summary lines is complete: do not drift into the
         # session workflow (start_analysis_session / run_full_analysis) for a pure event-statistics question.
-        events_done = any(t["tool"] == "detect_reversal_events" and '"summary_lines": [' in t["output"] for t in trace)
+        events_done = any(t["tool"] == "detect_reversal_events" and re.search(r'summary_lines\\?": \[', t["output"]) for t in trace)
         if not final_only and events_done and not re.search(r"recommended action|önerilen aksiyon|run_full_analysis", question, re.I):
             final_only = True
             stats["forced_final"] = 1

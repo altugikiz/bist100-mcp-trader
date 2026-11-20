@@ -329,6 +329,12 @@ def get_fundamental_metrics(period: str = "2026Q2", ticker: str = "ASELS") -> di
 
     row = df.loc[period].to_dict()
     row["period"] = period
+    if ticker != "ASELS":
+        rev, eb = row.get("revenue"), row.get("ebitda")
+        # Single-quarter EBITDA margin computed here; Net Debt/TTM EBITDA is provided by calculate_fundamental_change
+        if rev and eb is not None and rev == rev:
+            row["ebitda_margin"] = eb / rev
+        row["note"] = "Net Debt/EBITDA (trailing four quarters) is in calculate_fundamental_change quarterly_history."
     return _sanitise(row)
 
 
