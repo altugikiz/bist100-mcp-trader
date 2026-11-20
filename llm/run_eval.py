@@ -125,7 +125,10 @@ if __name__ == "__main__":
     rows = []
     for q, spec in [(q, sp) for q, sp in zip(qs, specs) for _ in range(max(1, a.repeat))]:
         t0 = time.time()
-        r = agent.run_agent(q, a.model, think=a.think, server=server, verbose=False)
+        try:
+            r = agent.run_agent(q, a.model, think=a.think, server=server, verbose=False)
+        except Exception as exc:          # one failed question must not lose the whole run
+            r = {"answer": f"(run failed: {exc})", "trace": [], "stats": {"tool_calls": 0, "invalid_calls": 0}}
         lat = time.time() - t0
         outs = " ".join(t["output"] for t in r["trace"])
         raw = r.get("raw_answer", r["answer"])

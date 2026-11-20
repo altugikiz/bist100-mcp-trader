@@ -190,12 +190,17 @@ def ollama_chat(model: str, messages: list, tools: list, think: bool) -> dict:
         return raw_chat(model, messages, tools, think)
     body = {"model": model, "messages": messages, "tools": tools,
             "stream": False, "think": think,
-            "options": {"temperature": 0.2, "num_ctx": 8192}}
+            "options": {"temperature": 0.2, "num_ctx": 8192, "num_predict": 2000}}   # cap runaway generations
     req = urllib.request.Request(
         f"{OLLAMA_URL}/api/chat", data=json.dumps(body).encode(),
         headers={"Content-Type": "application/json"})
-    with urllib.request.urlopen(req, timeout=600) as r:
-        return json.loads(r.read())["message"]
+    for attempt in range(2):
+        try:
+            with urllib.request.urlopen(req, timeout=300) as r:
+                return json.loads(r.read())["message"]
+        except (TimeoutError, OSError):          # includes socket timeouts and URLError
+            continue
+    return {"role": "assistant", "content": "(model timeout: no answer was produced)"}
 
 
 
