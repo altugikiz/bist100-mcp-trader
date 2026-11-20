@@ -36,6 +36,10 @@ def load_server():
 
 # The human review step must come from a human, never from the model.
 HUMAN_ONLY_TOOLS = {"submit_human_review"}
+# Narrower weekday tools stay on the MCP server, but the local model sees only test_weekday_pattern
+# (which accepts a multi-day `pattern`), so one question type always routes to one tool.
+MODEL_HIDDEN_TOOLS = {"test_weekday_sequence", "test_weekday_multiday_pattern"}
+_STATE_FILTERS = ("rsi_state", "volume_regime", "supertrend_state", "ichimoku_state")
 
 
 def _short(text: str, limit: int = 220) -> str:
@@ -57,7 +61,7 @@ def tool_specs(server, allow_human_review: bool = False, only: set | None = None
     """Convert the MCP tool list into Ollama/OpenAI-style function schemas."""
     tools = asyncio.run(server.mcp.list_tools())
     if not allow_human_review:
-        tools = [t for t in tools if t.name not in HUMAN_ONLY_TOOLS]
+        tools = [t for t in tools if t.name not in HUMAN_ONLY_TOOLS | MODEL_HIDDEN_TOOLS]
     if only is not None:
         tools = [t for t in tools if t.name in only]
     return [
@@ -262,6 +266,14 @@ def _run_agent(question: str, model: str, think: bool = False,
                                  "Do not describe the data or its structure. Answer the original question directly in the "
                                  "question's language, quoting the exact numbers from the tool results above."})
                 continue
+            used = {t["tool"] for t in trace}
+            if ("calculate_fundamental_change" in used and "get_fundamental_metrics" not in used
+                    and "get_fundamental_metrics" in by_name and not stats.get("metrics_nudge")):
+                stats["metrics_nudge"] = 1
+                messages.append({"role": "user", "content":
+                                 "Before answering, also call get_fundamental_metrics for the same ticker (period 2026Q2) "
+                                 "to confirm the latest reported EBITDA margin and Net Debt/EBITDA, then write the answer."})
+                continue
             if not (msg.get("content") or "").strip() and trace and not nudged:
                 # Small models sometimes return an empty reply right after tool output
                 nudged = True
@@ -318,6 +330,12 @@ def _run_agent(question: str, model: str, think: bool = False,
                     else:
                         args.pop(k)
                     stats["args_repaired"] = stats.get("args_repaired", 0) + 1
+            if name == "detect_reversal_events":
+                # The tool already returns the single-event and combined-condition comparisons (standard_comparisons);
+                # state filters would shrink the sample, so they are dropped and the full event log is used.
+                for k in _STATE_FILTERS:
+                    if args.pop(k, None) is not None:
+                        stats["filters_dropped"] = stats.get("filters_dropped", 0) + 1
             stats["tool_calls"] += 1
             err = None if name in by_name else f"unknown tool '{name}'"
             err = err or _validate_args(by_name[name], args)
