@@ -142,6 +142,7 @@ if __name__ == "__main__":
             "question": q, "tool_calls": r["stats"]["tool_calls"], "tools": " > ".join(called),
             "routing_ok": routing_ok(called, spec), "content_ok": content_ok,
             "invalid_calls": r["stats"]["invalid_calls"],
+            "tool_args": " || ".join(f'{t["tool"]}({json.dumps(t["args"], ensure_ascii=False)[:160]})' for t in r["trace"]),
             "tool_errors": " || ".join(f'{t["tool"]}({json.dumps(t["args"], ensure_ascii=False)[:150]}): {t["output"][:150]}'
                                        for t in r["trace"] if '"error"' in t["output"][:60]),
             "numbers_total": tot, "numbers_unsupported": bad, "unsupported_conclusion": unsup, "lookahead": lookahead,

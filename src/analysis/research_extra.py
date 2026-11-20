@@ -37,7 +37,7 @@ def resolve_as_of(as_of: str = "") -> tuple:
     warn = None
     ts = pd.Timestamp(as_of) if as_of else cap
     if ts > cap:
-        warn = f"Requested as_of {ts.date()} is after the analysis date; capped at {cap.date()}."
+        warn = f"The requested date is after the analysis date; it was capped at {cap.date()}."
         ts = cap
     return ts, warn
 

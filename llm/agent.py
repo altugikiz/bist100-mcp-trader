@@ -334,6 +334,16 @@ def _run_agent(question: str, model: str, think: bool = False,
             messages.append({"role": "tool", "tool_name": name, "content": out})
         analysis_done = any(t["tool"] == "get_recommended_action" and "action" in t["output"] and "error" not in t["output"][:40]
                             for t in trace)
+        # A research tool that already returned its plain-language summary lines is complete: do not drift into the
+        # session workflow (start_analysis_session / run_full_analysis) for a pure event-statistics question.
+        events_done = any(t["tool"] == "detect_reversal_events" and '"summary_lines": [' in t["output"] for t in trace)
+        if not final_only and events_done and not re.search(r"recommended action|önerilen aksiyon|run_full_analysis", question, re.I):
+            final_only = True
+            stats["forced_final"] = 1
+            messages.append({"role": "user", "content":
+                             "The tool results above already answer the question. Write the final answer now: quote the "
+                             "summary_lines numbers exactly (total events, how many rose within 5 days, and the two comparisons)."})
+            continue
         if not final_only and ((analysis_done and round_failed) or len(trace) >= 8):
             # The harness has already produced its answer (or the model is looping): ask for the write-up
             final_only = True
