@@ -171,7 +171,7 @@ def sector_catchup_backtest(sector_group: str, as_of: str = "", start: str = "20
                 "low_sample_warning": bool(n < 30),
             })
         out[f"{h}d"] = d
-    summary = []
+    summary, edges = [], []
     for h, d in out.items():
         if not d.get("n_signals"):
             summary.append(f"{h}: no laggard signals at this threshold, so nothing can be concluded.")
@@ -179,12 +179,18 @@ def sector_catchup_backtest(sector_group: str, as_of: str = "", start: str = "20
         base = d.get("baseline_catchup_rate_non_laggards")
         p = d.get("binomial_p_vs_baseline")
         edge = bool(base is not None and d["catchup_rate"] > base and p is not None and p < 0.05 and d["n_signals"] >= 30)
+        edges.append(edge)
         summary.append(
             f"{h}: catch-up rate {d['catchup_rate']*100:.1f}% vs {base*100:.1f}% for non-laggards "
             f"(n={d['n_signals']}, p={p:.3f}; false positives, i.e. laggards that kept underperforming the sector: "
             f"{d['n_signals'] - int(round(d['catchup_rate']*d['n_signals']))} of {d['n_signals']}) -> " + ("evidence of a catch-up edge." if edge else
                                                        "NO evidence that laggards catch up more often than other stocks.")
             if base is not None and p is not None else f"{h}: baseline not available.")
+    verdict = ("POTENTIAL_CATCH_UP_CANDIDATE is supported by the history (catch-up rate beats non-laggards with p<0.05 at a horizon)."
+               if any(edges) else
+               "Label verdict: INVESTIGATE. The historical catch-up rates do not beat the non-laggard baseline, so "
+               "POTENTIAL_CATCH_UP_CANDIDATE is NOT supported by this evidence; a current lag alone is not enough.")
+    summary.append(verdict)
     incomplete = int(df["laggard"].sum() - len(df[df["laggard"]].dropna(subset=[f"ret_{horizons[-1]}"])))
     return {
         "sector_group": sector_group, "members": members, "as_of": str(ts.date()),
