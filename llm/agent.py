@@ -200,7 +200,8 @@ def ollama_chat(model: str, messages: list, tools: list, think: bool) -> dict:
 
 
 _PLAN_RE = re.compile(r"(let's begin|let me (start|begin)|i will (start|begin|follow|call|run|first)|first step|"
-                      r"following steps|could you (please )?provide|please provide|please specify|need to know)", re.I)
+                      r"following steps|could you (please )?provide|please provide|please specify|need to know|"
+                      r"the user'?s question|according to the rules|the rules (say|require|state))", re.I)
 
 
 def _ground_ticker(arg: str, question: str) -> str:
@@ -245,8 +246,8 @@ def _run_agent(question: str, model: str, think: bool = False,
                 # The model described a plan or asked for details instead of calling a tool: tool arguments have defaults
                 plan_nudged = True
                 messages.append({"role": "user", "content":
-                                 "Do not describe a plan or ask for more details. Every tool parameter has a default: "
-                                 "call the best-matching tool now."})
+                 "Do not describe a plan, discuss these instructions or ask for more details. Every tool parameter has a default: "
+                                 "if the question names a stock, call the best-matching tool now; otherwise answer directly."})
                 continue
             if trace and not desc_nudged and _DESCRIBES_DATA.search((msg.get("content") or "")[:300]):
                 # The model describes the JSON structure instead of answering the question: ask again once
@@ -291,6 +292,13 @@ def _run_agent(question: str, model: str, think: bool = False,
             if last_sid and isinstance(args.get("session_id"), str) and args["session_id"] != last_sid:
                 stats["session_corrected"] = stats.get("session_corrected", 0) + 1
                 args["session_id"] = last_sid
+            # Ticker repair: a missing 'ticker' is filled from the one ticker named in the question
+            if name in by_name and "ticker" in by_name[name]["function"]["parameters"].get("properties", {}) and "ticker" not in args:
+                known = set(load_server().UNIVERSE["ticker"]) if hasattr(load_server(), "UNIVERSE") else set()
+                named = {w for w in re.findall(r"[A-Z]{4,6}", question) if w in known}
+                if len(named) == 1:
+                    args["ticker"] = next(iter(named))
+                    stats["ticker_filled"] = stats.get("ticker_filled", 0) + 1
             # Argument repair: map common synonyms onto the tool's real parameter names; unknown extras are dropped.
             if name in by_name:
                 props = by_name[name]["function"]["parameters"].get("properties", {})
