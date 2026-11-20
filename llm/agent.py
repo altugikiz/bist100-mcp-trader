@@ -86,6 +86,7 @@ def _validate_args(spec: dict, args: dict) -> str | None:
     return None
 
 
+_DESCRIBES_DATA = re.compile(r"(JSON|data|output|results?)\s+(you|that you)('ve| have)?\s+(provided|shared|given)|provided (appears|represents|is)|appears to be a structured", re.I)
 _TOOL_CALL = re.compile(r"<tool_call>\s*(\{.*?\})\s*</tool_call>", re.S)
 _THINK = re.compile(r"^\s*<think>.*?</think>\s*", re.S)
 _TOKENIZER = None
@@ -227,6 +228,7 @@ def _run_agent(question: str, model: str, think: bool = False,
 
     nudged = False
     plan_nudged = False
+    desc_nudged = False
     final_only = False   # set once the analysis is complete or the model starts looping
     last_sid = None      # most recent real session id returned by start_analysis_session
     for _ in range(MAX_STEPS):
@@ -245,6 +247,14 @@ def _run_agent(question: str, model: str, think: bool = False,
                 messages.append({"role": "user", "content":
                                  "Do not describe a plan or ask for more details. Every tool parameter has a default: "
                                  "call the best-matching tool now."})
+                continue
+            if trace and not desc_nudged and _DESCRIBES_DATA.search((msg.get("content") or "")[:300]):
+                # The model describes the JSON structure instead of answering the question: ask again once
+                desc_nudged = True
+                stats["describe_nudge"] = 1
+                messages.append({"role": "user", "content":
+                                 "Do not describe the data or its structure. Answer the original question directly in the "
+                                 "question's language, quoting the exact numbers from the tool results above."})
                 continue
             if not (msg.get("content") or "").strip() and trace and not nudged:
                 # Small models sometimes return an empty reply right after tool output

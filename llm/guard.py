@@ -63,6 +63,12 @@ def check_and_repair(question, answer, trace):
     viol, add = [], []
     tr = _is_tr(question)
     tool_text = " ".join(t["output"] for t in trace)
+    # stray CJK characters (a known small-model glitch) are replaced: the answer language is Turkish or English only
+    if re.search(r"[\u3040-\u30ff\u3400-\u9fff]", answer):
+        viol.append("cjk")
+        answer = re.sub(r"\s*(价格)?上涨( etti)?", " yükseldi" if tr else " rose", answer)
+        answer = re.sub(r"\s*(价格)?下跌( etti)?", " düştü" if tr else " fell", answer)
+        answer = re.sub(r"[\u3040-\u30ff\u3400-\u9fff]+", "", answer)
     up = answer.upper()
 
     if _ADVICE.search(answer):
@@ -124,8 +130,9 @@ def check_and_repair(question, answer, trace):
     # ignore the label where the answer itself negates it or where an earlier correction already mentions it
     up_lbl = re.sub(r"(CORRECTION|DÜZELTME):[^\n]*", "", up)
     up_lbl = re.sub(r"(NOT MEET|NOT QUALIFY|NOT LABELED|NOT BE LABELED|NOT SUPPORT|NO EVIDENCE)[^.\n]{0,120}", "", up_lbl)
+    already_corrected = re.search(r"not supported by tool output|araç çıktısıyla desteklenmiyor", answer)
     cand = [l for l in ("POTENTIAL_CATCH_UP_CANDIDATE", "TECHNICAL_REVERSAL_CANDIDATE", "FUNDAMENTAL_IMPROVEMENT_CANDIDATE")
-            if l in up_lbl and l != final_action]
+            if l in up_lbl and l != final_action and not already_corrected]
     if cand and not final_action:
         viol.append("unsupported_label")
         add.append(f"Correction: the label {cand[0]} above is not supported by tool output (the harness produced no such action); "
