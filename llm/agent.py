@@ -350,6 +350,11 @@ def _run_agent(question: str, model: str, think: bool = False,
                 for k in _STATE_FILTERS:
                     if args.pop(k, None) is not None:
                         stats["filters_dropped"] = stats.get("filters_dropped", 0) + 1
+            for k, v in list(args.items()):
+                m_ = re.fullmatch(r"\s*(\d{1,2})\.(\d{1,2})\.(\d{4})\s*", v) if isinstance(v, str) else None
+                if m_:   # dd.mm.yyyy -> ISO, so no tool can read it month-first
+                    args[k] = f"{m_.group(3)}-{int(m_.group(2)):02d}-{int(m_.group(1)):02d}"
+                    stats["dates_normalised"] = stats.get("dates_normalised", 0) + 1
             sig = (name, json.dumps(args, sort_keys=True, default=str))
             if sig in seen_calls:
                 # Exact repeat of an earlier call in this run: do not execute or count it again

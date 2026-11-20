@@ -192,7 +192,7 @@ def calculate_indicators(
     """
     ticker = symbol.upper().replace(".IS", "")
     df, _ = _build_price_with_indicators(_load_price_df(ticker, as_of or end).copy())
-    df = df.loc[df.index >= pd.Timestamp(start)]
+    df = df.loc[df.index >= _rx._ts(start)]
     last = df.iloc[-1]
     date = df.index[-1].strftime("%Y-%m-%d")
     vol_avg = df["Volume"].rolling(20).mean().iloc[-1]
@@ -1148,10 +1148,21 @@ def test_weekday_pattern(
     if pattern and pattern.strip():
         parts = re.split(r"\s*(?:,\s*)?(?:\bthen\b|\bfollowed by\b|\bardından\b|\bardindan\b|\bsonra\b|->|→|=>)\s*", pattern.strip(), maxsplit=1, flags=re.I)
         if len(parts) != 2 or not parts[0].strip() or not parts[1].strip():
+            # No explicit separator: split the legs where the direction first changes (Mon down, Wed down, Fri up)
+            legs = _rx._parse_legs(pattern)
+            if legs:
+                first_dir = legs[0][1]
+                cond = [l for l in legs if l[1] == first_dir and l[0] < min((x[0] for x in legs if x[1] != first_dir), default=9)]
+                outc = [l for l in legs if l not in cond]
+                if cond and outc and max(c[0] for c in cond) < min(o[0] for o in outc):
+                    names = ["Mon", "Tue", "Wed", "Thu", "Fri"]
+                    txt = lambda ls: ", ".join(f"{names[d]} {'down' if sg == 'negative' else 'up'}" for d, sg in ls)
+                    parts = [txt(cond), txt(outc)]
+        if len(parts) != 2 or not parts[0].strip() or not parts[1].strip():
             return {"error": "pattern must be 'condition then outcome', e.g. 'Mon down, Tue down, Wed down, then Thu up, Fri up'."}
         return _sanitise(_rx.weekday_multiday_pattern_test(ticker, parts[0], parts[1], end_date, start_date, train_end, cost_bps, 1))
     df = _load_price_df(ticker, end_date)
-    df = df.loc[df.index >= pd.Timestamp(start_date or _rx.DEFAULT_START)]
+    df = df.loc[df.index >= _rx._ts(start_date or _rx.DEFAULT_START)]
     df = calculate_weekday_returns(df)
 
     res = _wd_test(df, ticker)
@@ -1162,7 +1173,7 @@ def test_weekday_pattern(
     # Out-of-sample stability: chronological 70/30 split
     clean = df.dropna(subset=["Daily_Return", "Weekday"])
     if train_end:
-        train, test = clean.loc[clean.index <= pd.Timestamp(train_end)], clean.loc[clean.index > pd.Timestamp(train_end)]
+        train, test = clean.loc[clean.index <= _rx._ts(train_end)], clean.loc[clean.index > _rx._ts(train_end)]
     else:
         split = int(len(clean) * 0.7)
         train, test = clean.iloc[:split], clean.iloc[split:]
@@ -1279,7 +1290,7 @@ def detect_reversal_events(
         log = log[log["event_type"] == event_type]
     filters = {k: v for k, v in {"rsi_state": rsi_state, "volume_regime": volume_regime,
                                  "supertrend_state": supertrend_state, "ichimoku_state": ichimoku_state}.items() if v}
-    start_ts = pd.Timestamp(start or _rx.DEFAULT_START)
+    start_ts = _rx._ts(start or _rx.DEFAULT_START)
     log = log[pd.to_datetime(log["event_date"]) >= start_ts]
     log_type = log.sort_values("event_date")          # all events of the type in the period, before state filters
     for col, val in filters.items():
@@ -1387,8 +1398,8 @@ def get_macro_context(start_date: str = "", end_date: str = "") -> dict:
     """
     path  = os.path.join(_PROJ_ROOT, "data", "macro", "macro_daily.csv")
     macro = pd.read_csv(path, index_col="Date", parse_dates=True)
-    end   = pd.Timestamp(end_date) if end_date else macro.index[-1]
-    start = pd.Timestamp(start_date) if start_date else end - pd.Timedelta(days=30)
+    end   = _rx._ts(end_date) if end_date else macro.index[-1]
+    start = _rx._ts(start_date) if start_date else end - pd.Timedelta(days=30)
     clip_note = None
     if end > macro.index[-1] or start < macro.index[0]:
         clip_note = (f"Requested range {start.date()}..{end.date()} was clipped to the available macro data "

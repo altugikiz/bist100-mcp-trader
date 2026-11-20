@@ -31,11 +31,19 @@ from analysis.fundamental_analysis import YTD_TICKERS               # noqa: E402
 # Shared helpers
 # ---------------------------------------------------------------------------
 
+def _ts(value) -> pd.Timestamp:
+    """Parse a date; dotted dd.mm.yyyy (Turkish style) is read day-first, never month-first."""
+    if isinstance(value, str) and re.fullmatch(r"\s*\d{1,2}\.\d{1,2}\.\d{4}\s*", value):
+        d, m, y = (int(x) for x in value.strip().split("."))
+        return pd.Timestamp(year=y, month=m, day=d)
+    return pd.Timestamp(value)
+
+
 def resolve_as_of(as_of: str = "") -> tuple:
     """Return (timestamp, warning|None). The date is capped at ANALYSIS_DATE and at the cache end."""
     cap = pd.Timestamp(ANALYSIS_DATE)
     warn = None
-    ts = pd.Timestamp(as_of) if as_of else cap
+    ts = _ts(as_of) if as_of else cap
     if ts > cap:
         warn = f"The requested date is after the analysis date; it was capped at {cap.date()}."
         ts = cap
@@ -245,7 +253,7 @@ def weekday_sequence_test(ticker: str, first_day: str = "Monday", first_directio
     first_day, second_day = [k for k, v in _DAYS.items() if v == fd and len(k) > 3 and k.isascii()][0].capitalize(), \
                             [k for k, v in _DAYS.items() if v == sd and len(k) > 3 and k.isascii()][0].capitalize()
     df = load_ohlcv(ticker, as_of)
-    df = df.loc[df.index >= pd.Timestamp(start or DEFAULT_START)]
+    df = df.loc[df.index >= _ts(start or DEFAULT_START)]
     df = df.copy()
     df["ret"] = df["Close"].pct_change()
     df["wk"] = df.index.to_period("W-SUN")
@@ -260,7 +268,7 @@ def weekday_sequence_test(ticker: str, first_day: str = "Monday", first_directio
         return {"error": f"Only {len(w)} complete weeks available for {ticker}."}
     cond = (w["r1"] < 0) if first_direction == "negative" else (w["r1"] > 0)
     outc = (w["r2"] > 0) if second_direction == "positive" else (w["r2"] < 0)
-    cut = pd.Timestamp(train_end) if train_end else w["week"].iloc[int(len(w) * 0.7)]
+    cut = _ts(train_end) if train_end else w["week"].iloc[int(len(w) * 0.7)]
     cost = cost_bps / 1e4
 
     def seg(mask):
@@ -355,7 +363,7 @@ def weekday_multiday_pattern_test(ticker: str, condition: str = "Mon down, Tue d
     names = ["Mon", "Tue", "Wed", "Thu", "Fri"]
     fmt = lambda legs: ", ".join(f"{names[d]} {'down' if x == 'negative' else 'up'}" for d, x in legs)
     df = load_ohlcv(ticker, as_of)
-    df = df.loc[df.index >= pd.Timestamp(start or DEFAULT_START)].copy()
+    df = df.loc[df.index >= _ts(start or DEFAULT_START)].copy()
     df["ret"] = df["Close"].pct_change()
     df["wk"] = df.index.to_period("W-SUN")
     need = sorted({d for d, _ in cl + ol})
@@ -372,7 +380,7 @@ def weekday_multiday_pattern_test(ticker: str, condition: str = "Mon down, Tue d
     w = pd.DataFrame(rows)
     if len(w) < 20:
         return {"error": f"Only {len(w)} complete weeks available for {ticker}."}
-    cut = pd.Timestamp(train_end) if train_end else w["week"].iloc[int(len(w) * 0.7)]
+    cut = _ts(train_end) if train_end else w["week"].iloc[int(len(w) * 0.7)]
     cost = cost_bps / 1e4
 
     def seg(mask):
@@ -620,7 +628,7 @@ def macro_stock_relationship(ticker: str, macro_variable: str = "usdtry", start_
     close = _close(ticker, str(ts.date()))
     macro = pd.read_csv(_MACRO, index_col="Date", parse_dates=True)
     macro = macro.loc[macro.index <= ts]
-    st = pd.Timestamp(start_date) if start_date else max(close.index[0], macro.index[0])
+    st = _ts(start_date) if start_date else max(close.index[0], macro.index[0])
     if st < macro.index[0]:
         st = macro.index[0]
     m = macro[var].reindex(close.index, method="ffill")
