@@ -206,7 +206,7 @@ def ollama_chat(model: str, messages: list, tools: list, think: bool) -> dict:
 
 _PLAN_RE = re.compile(r"(let's begin|let me (start|begin)|i will (start|begin|follow|call|run|first)|first step|"
                       r"following steps|could you (please )?provide|please provide|please specify|need to know|"
-                      r"the user'?s question|according to the rules|the rules (say|require|state))", re.I)
+                      r"the user'?s (question|request)|according to the rules|the rules (say|require|state))", re.I)
 
 
 def _ground_ticker(arg: str, question: str) -> str:

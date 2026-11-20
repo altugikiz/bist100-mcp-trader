@@ -150,7 +150,7 @@ if __name__ == "__main__":
             "tool_args": " || ".join(f'{t["tool"]}({json.dumps(t["args"], ensure_ascii=False)[:160]})' for t in r["trace"]),
             "tool_errors": " || ".join(f'{t["tool"]}({json.dumps(t["args"], ensure_ascii=False)[:150]}): {t["output"][:150]}'
                                        for t in r["trace"] if '"error"' in t["output"][:60]),
-            "numbers_total": tot, "numbers_unsupported": bad, "unsupported_conclusion": unsup, "lookahead": lookahead,
+            "numbers_total": tot, "numbers_unsupported": bad, "unsupported_conclusion": unsup, "lookahead": lookahead, "lookahead_hit": (late.search(outs) or late.search(raw) or [None])[0] if lookahead else "",
             "violations_raw": "|".join(viol_raw), "violations_guarded": "|".join(viol_fin),
             "latency_s": round(lat, 1), "answer": r["answer"].replace("\n", " ")[:1800],
         })
