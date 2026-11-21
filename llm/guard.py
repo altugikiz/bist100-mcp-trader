@@ -78,6 +78,15 @@ def unsupported_numbers(answer, tool_text):
     return bad, total
 
 
+_NEG_TR = re.compile(r"(?:POTENTIAL_CATCH_UP_CANDIDATE|TECHNICAL_REVERSAL_CANDIDATE|FUNDAMENTAL_IMPROVEMENT_CANDIDATE)"
+                     r"[^.\n]{0,120}?(?:DESTEKLENMED|HAY[Iİ]R|ATANMAD|DESTEKLENM[Iİ]YOR|VER[Iİ]LEMEZ|VER[Iİ]LEMED|VER[Iİ]LMED|YAPILAMAD|ETİKETLENEMEZ|ETIKETLENEMEZ|D[EE]ĞİL|DEĞ[Iİ]L|NOT SUPPORTED)")
+
+
+def strip_negated_labels(up_text):
+    """Remove (upper-cased) label mentions that the answer itself negates, e.g. 'etiketi desteklenmedi'."""
+    return _NEG_TR.sub("", up_text)
+
+
 def _is_tr(question):
     return bool(re.search(r"[çğıöşüÇĞİÖŞÜ]|\b(için|nedir|hissesi|analiz|var mı|hangi)\b", question))
 
