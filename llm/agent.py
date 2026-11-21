@@ -268,6 +268,17 @@ def _run_agent(question: str, model: str, think: bool = False,
                                  "question's language, quoting the exact numbers from the tool results above."})
                 continue
             used = {t["tool"] for t in trace}
+            if (not trace and not stats.get("route_nudge") and not stats.get("macro_nudge")
+                    and re.search(r"\b(monday|tuesday|wednesday|thursday|friday|pazartesi|salı|çarşamba|perşembe|cuma)\b", question, re.I)
+                    and re.search(r"pattern|örüntü|down|up|düşüş|yüksel", question, re.I)):
+                # Weekday-pattern question answered without any tool call: ask once for the right tool
+                stats["route_nudge"] = 1
+                messages.append({"role": "user", "content":
+                                 "Call test_weekday_pattern now: ticker from the question, start_date 2024-01-01, end_date 2026-09-10, "
+                                 "train_end = the last day of the in-sample period named in the question (for example 2025-12-31), and "
+                                 "pattern = exactly the pattern asked, written as 'condition then outcome' (for example "
+                                 "'Monday down, Tuesday down, Wednesday down, then Thursday up, Friday up'). Do not answer without the tool."})
+                continue
             named = {w for w in re.findall(r"[A-Z]{4,6}", question) if w in set(getattr(load_server(), "UNIVERSE", {}).get("ticker", []))} \
                 if hasattr(load_server(), "UNIVERSE") else set()
             if (re.search(r"hedef fiyat|price target|should i buy|al[ae]y[ıi]m m[ıi]|sat[ae]y[ıi]m m[ıi]", question, re.I)
@@ -286,7 +297,8 @@ def _run_agent(question: str, model: str, think: bool = False,
                                  "Before answering, also call get_fundamental_metrics for the same ticker (period 2026Q2) "
                                  "to confirm the latest quarter, then write the answer: list EVERY quarter from quarterly_history of the earlier "
                                  "calculate_fundamental_change result, ONE short line per quarter, for example '2024Q1: EBITDA margin 3.7%, "
-                                 "Net Debt/EBITDA n/a, abnormal 1d -2.0%, 5d +0.1%, 20d -9.7% (vs XU100; sector figure given if different)', "
+                                 "Net Debt/EBITDA n/a, abnormal 1d -2.0%, 5d +0.1%, 20d -9.7% vs XU100 / -9.7% vs sector', then one sentence "
+                                 "on improvement_vs_reaction (did improving quarters react better?), "
                                  "flag the Q2 2026 20-day return as incomplete, make no causal claim, and use only numbers printed by the tools."})
                 continue
             if not (msg.get("content") or "").strip() and trace and not nudged:

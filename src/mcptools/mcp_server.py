@@ -1121,27 +1121,33 @@ def _laggard_diagnosis(rank_df, snap) -> dict:
         q = q.assign(margin=q["ebitda"] / q["revenue"])
         last, prev = q.iloc[-1], q.iloc[-5:-1]["margin"].mean() if len(q) >= 5 else None
         diag["latest_disclosed_quarter"] = str(q.index[-1])
-        diag["ebitda_margin_latest"] = float(last["margin"])
+        diag["ebitda_margin_latest_pct"] = round(float(last["margin"]) * 100, 3)
+        reason = None
         if prev is not None and prev == prev:
-            diag["ebitda_margin_prior_4q_average"] = float(prev)
-        fund_bad = prev is not None and prev == prev and (last["margin"] < prev - 0.02 or (prev > 0 and last["margin"] < 0.5 * prev))
-    except Exception as exc:   # no fundamentals file for this ticker
+            diag["ebitda_margin_prior_4q_average_pct"] = round(float(prev) * 100, 2)
+            drop_pp = (prev - last["margin"]) * 100
+            if drop_pp > 2:
+                reason = f"the latest EBITDA margin fell {drop_pp:.2f} percentage points below its prior four-quarter average"
+            elif prev > 0 and last["margin"] < 0.5 * prev:
+                reason = "the latest EBITDA margin fell to less than half of its prior four-quarter average"
+        fund_bad = bool(reason) if prev is not None and prev == prev else None
+    except Exception as exc:   # no fundamentals file for this stock
         diag["fundamentals"] = f"not available ({str(exc)[:60]})"
-        fund_bad = None
+        fund_bad, reason = None, None
     try:
         macro = pd.read_csv(os.path.join(_PROJ_ROOT, "data", "macro", "macro_daily.csv"), index_col="Date", parse_dates=True).loc[:snap]
         w = macro.iloc[-21:]
-        diag["usdtry_change_20d"] = float(w["usdtry"].iloc[-1] / w["usdtry"].iloc[0] - 1)
-        diag["tcmb_rate_latest"] = float(macro["tcmb_rate"].iloc[-1])
+        diag["usdtry_change_20d_pct"] = round(float(w["usdtry"].iloc[-1] / w["usdtry"].iloc[0] - 1) * 100, 2)
+        diag["tcmb_rate_latest_pct"] = float(macro["tcmb_rate"].iloc[-1])
     except Exception:
         pass
     if fund_bad is None:
         diag["classification"] = "undetermined: no fundamentals for this stock"
     elif fund_bad:
-        diag["classification"] = "possibly STRUCTURAL: the latest EBITDA margin is more than 2 percentage points below, or under half of, its prior four-quarter average"
+        diag["classification"] = f"possibly STRUCTURAL: {reason}"
     else:
-        diag["classification"] = ("looks TEMPORARY: no fundamental deterioration in the latest disclosed quarter (EBITDA margin not "
-                                  "more than 2 percentage points below, nor under half of, its prior four-quarter average); the lag appears price-driven")
+        diag["classification"] = ("looks TEMPORARY: no fundamental deterioration in the latest disclosed quarter; "
+                                  "the lag appears price-driven")
     diag["note"] = "Heuristic from disclosed fundamentals and macro data; it is not proof and says nothing about the future."
     return diag
 

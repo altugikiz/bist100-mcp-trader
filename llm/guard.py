@@ -138,9 +138,8 @@ def check_and_repair(question, answer, trace):
         add.append(" | ".join(scope) + ".")
 
     # ignore the label where the answer itself negates it or where an earlier correction already mentions it
-    up_lbl = re.sub(r"(CORRECTION|DÜZELTME):[^\n]*", "", up)
+    up_lbl = strip_negated_labels(re.sub(r"(CORRECTION|DÜZELTME):[^\n]*", "", up))   # first: "<label> is not supported"
     up_lbl = re.sub(r"(NOT MEET|NOT QUALIFY|NOT LABELED|NOT BE LABELED|NOT SUPPORT|NO EVIDENCE)[^.\n]{0,120}", "", up_lbl)
-    up_lbl = strip_negated_labels(up_lbl)
     already_corrected = re.search(r"not supported by tool output|araç çıktısıyla desteklenmiyor", answer)
     cand = [l for l in ("POTENTIAL_CATCH_UP_CANDIDATE", "TECHNICAL_REVERSAL_CANDIDATE", "FUNDAMENTAL_IMPROVEMENT_CANDIDATE")
             if l in up_lbl and l != final_action and not already_corrected]
