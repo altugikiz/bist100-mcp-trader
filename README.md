@@ -156,12 +156,16 @@ python llm/agent.py "Run a full analysis for THYAO" --model bist-analyst
 # Evaluate tool-use quality on the 20 questions -> data/events/llm_eval_<model>.csv
 python llm/run_eval.py --model bist-analyst
 
-# Teacher-style sample test (15 questions, analysis date 2026-09-10) with reproducibility check (each asked twice)
+# Teacher-style sample test (20 questions, analysis date 2026-09-10) with reproducibility check (each asked twice)
 python llm/run_eval.py --model bist-analyst --teacher --repeat 2
 
 # Real A/B runs (A: base model without tools, B: bist-analyst with tools)
 python llm/run_ab.py
 ```
+
+Latest teacher-style run (base `bist-analyst` + guard, 20 questions × 2): tool selection 100%, invented-number rate 0%, look-ahead 0%, tool-sequence reproducibility 100%, guarded rule violations 2.5% (one case, since fixed in the guard); on the 14-question routing set: tool selection 100%, look-ahead 0%, guarded violations 0%. The only numbers counted as unsupported are generic definitions answered without tools (for example RSI 70/30). Model answers are not word-for-word identical between runs; the numbers are compared with tool output.
+
+Routing notes: the local model sees `test_weekday_pattern` (which takes a multi-day `pattern`) rather than the narrower `test_weekday_sequence` / `test_weekday_multiday_pattern`, which stay on the MCP server; `detect_reversal_events` state filters are dropped by the agent because the tool already returns the single-event and combined-condition comparisons; dotted `dd.mm.yyyy` dates are read day-first.
 
 ### Fine-tuning experiment (LoRA on Qwen3 4B and 8B)
 
