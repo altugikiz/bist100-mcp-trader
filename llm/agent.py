@@ -268,6 +268,13 @@ def _run_agent(question: str, model: str, think: bool = False,
                                  "question's language, quoting the exact numbers from the tool results above."})
                 continue
             used = {t["tool"] for t in trace}
+            if ("rank_sector_relative_strength" in used and "backtest_sector_catchup" not in used and not stats.get("backtest_nudge")
+                    and re.search(r"catch|yeti[sş]|kapan|closed|history|histor|geçmiş|past", question, re.I)):
+                stats["backtest_nudge"] = 1
+                messages.append({"role": "user", "content":
+                                 "The question also asks whether similar lags closed historically. Call backtest_sector_catchup now for the "
+                                 "same sector_group you used, with as_of 2026-09-10 and start 2024-01-01, then answer with its evidence."})
+                continue
             last_by_tool = {t["tool"]: t["output"] for t in trace}
             failed = [n for n, o in last_by_tool.items() if re.search(r'\\?"error\\?":', o[:60])]
             if failed and not stats.get("error_nudge") and not (failed == ["start_analysis_session"]):
@@ -370,11 +377,24 @@ def _run_agent(question: str, model: str, think: bool = False,
                 if args.pop("cost_bps", None) not in (None, 0, 0.0):
                     stats["cost_dropped"] = stats.get("cost_dropped", 0) + 1   # the model invented a cost the user never gave
             if name == "detect_reversal_events":
-                # The tool already returns the single-event and combined-condition comparisons (standard_comparisons);
-                # state filters would shrink the sample, so they are dropped and the full event log is used.
-                for k in _STATE_FILTERS:
-                    if args.pop(k, None) is not None:
-                        stats["filters_dropped"] = stats.get("filters_dropped", 0) + 1
+                touch_q = bool(re.search(r"touch|dokun|band", question, re.I))
+                state_q = bool(re.search(r"supertrend", question, re.I) and re.search(r"bearish|düşüş|negatif", question, re.I)
+                               and re.search(r"below.{0,30}cloud|cloud.{0,30}below|bulutun altında|bulut altı", question, re.I))
+                if touch_q and args.get("event_type"):
+                    # The tool already returns the single-event and combined-condition comparisons (standard_comparisons);
+                    # state filters would shrink the sample, so they are dropped and the full event log is used.
+                    for k in _STATE_FILTERS:
+                        if args.pop(k, None) is not None:
+                            stats["filters_dropped"] = stats.get("filters_dropped", 0) + 1
+                elif state_q and not touch_q:
+                    # "when Supertrend was bearish and price below the cloud ..." is a state question: filter on those states
+                    args.pop("event_type", None)
+                    args["supertrend_state"], args["ichimoku_state"] = "bearish", "below_cloud"
+                    stats["state_filters_set"] = 1
+            if name == "backtest_sector_catchup":
+                # Horizons: always include 5/10/20 (the model sometimes sends '20d' or '5-10' and would then repeat one value)
+                got = {int(x) for x in re.findall(r"\d+", str(args.get("horizons", ""))) if 0 < int(x) <= 60}
+                args["horizons"] = ",".join(str(h) for h in sorted({5, 10, 20} | got))
             for k, v in list(args.items()):
                 m_ = re.fullmatch(r"\s*(\d{1,2})\.(\d{1,2})\.(\d{4})\s*", v) if isinstance(v, str) else None
                 if m_:   # dd.mm.yyyy -> ISO, so no tool can read it month-first
@@ -421,6 +441,8 @@ def _run_agent(question: str, model: str, think: bool = False,
         # session workflow (start_analysis_session / run_full_analysis) for a pure event-statistics question.
         events_done = any(t["tool"] == "detect_reversal_events" and re.search(r'summary_lines\\?": \[', t["output"]) for t in trace)
         used_now = {t["tool"] for t in trace}
+        state_done = any(t["tool"] == "detect_reversal_events" and re.search(r'evidence_summary\\?": \\?"', t["output"])
+                         and not re.search(r'summary_lines\\?": \[', t["output"]) for t in trace)
         weekday_done = any(t["tool"] == "test_weekday_pattern" and "evidence_summary" in t["output"] for t in trace)
         catchup_done = "backtest_sector_catchup" in used_now and "rank_sector_relative_strength" in used_now
         no_session = not re.search(r"recommended action|önerilen aksiyon|run_full_analysis", question, re.I)
@@ -431,6 +453,11 @@ def _run_agent(question: str, model: str, think: bool = False,
                          "the average forward returns at 1, 3, 5 and 10 days, the two comparisons (RSI trough + high volume; bearish "
                          "Supertrend + below the Ichimoku cloud), any small-sample warning, and the statement about events excluded "
                          "because their forward window is incomplete.")
+        elif state_done and no_session:
+            final_msg = ("The tool result above already answers the question. Write the final answer now, in the question's language, "
+                         "quoting evidence_summary exactly: the rebound rate within 5 days for the matching events, the all-days "
+                         "baseline, the sample size n, and whether it beats the baseline; say that events overlap and the sample is "
+                         "a research indication only.")
         elif weekday_done and no_session:
             final_msg = ("The tool result above already answers the question. Write the final answer now, in the question's language, "
                          "quoting evidence_summary exactly: how often the full pattern occurred, the in-sample and out-of-sample "
