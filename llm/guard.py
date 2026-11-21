@@ -79,12 +79,16 @@ def unsupported_numbers(answer, tool_text):
 
 
 _NEG_TR = re.compile(r"(?:POTENTIAL_CATCH_UP_CANDIDATE|TECHNICAL_REVERSAL_CANDIDATE|FUNDAMENTAL_IMPROVEMENT_CANDIDATE)"
-                     r"[^.\n]{0,120}?(?:DESTEKLENMED|HAY[Iİ]R|ATANMAD|DESTEKLENM[Iİ]YOR|VER[Iİ]LEMEZ|VER[Iİ]LEMED|VER[Iİ]LMED|YAPILAMAD|ETİKETLENEMEZ|ETIKETLENEMEZ|D[EE]ĞİL|DEĞ[Iİ]L|NOT SUPPORTED)")
+                     r"[^.\n]{0,120}?(?:DESTEKLENMED|DESTEKLENMEM|HAY[Iİ]R|ATANMAD|DESTEKLENM[Iİ]YOR|VER[Iİ]LEMEZ|VER[Iİ]LEMED|VER[Iİ]LMED|YAPILAMAD|ETİKETLENEMEZ|ETIKETLENEMEZ|D[EE]ĞİL|DEĞ[Iİ]L|NOT SUPPORTED)")
+
+
+_NEG_BEFORE = re.compile(r"(?:NO EVIDENCE(?: SUPPORTS| FOR)?|NOT SUPPORT\w*|NO SUPPORT FOR|DESTEKLENMEYEN)\W{0,12}"
+                         r"(?:THE LABEL\W{0,3})?(?:POTENTIAL_CATCH_UP_CANDIDATE|TECHNICAL_REVERSAL_CANDIDATE|FUNDAMENTAL_IMPROVEMENT_CANDIDATE)")
 
 
 def strip_negated_labels(up_text):
     """Remove (upper-cased) label mentions that the answer itself negates, e.g. 'etiketi desteklenmedi'."""
-    return _NEG_TR.sub("", up_text)
+    return _NEG_BEFORE.sub("", _NEG_TR.sub("", up_text))
 
 
 def _is_tr(question):

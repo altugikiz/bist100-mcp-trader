@@ -667,4 +667,8 @@ def macro_stock_relationship(ticker: str, macro_variable: str = "usdtry", start_
         fxr = float(d["m"].iloc[-1] / d["m"].iloc[0] - 1)
         out["fx_change"] = fxr
         out["stock_return_in_fx_terms"] = float((1 + tot) / (1 + fxr) - 1)
+        out["fx_change_pct"] = round(fxr * 100, 2)
+        out["stock_return_in_fx_terms_pct"] = round(out["stock_return_in_fx_terms"] * 100, 2)
+    out["stock_total_return_pct"] = round(tot * 100, 2)   # percent versions so a fraction (0.91) is not read as 0.91%
+    out["stock_total_return_in_local_currency_note"] = "stock_total_return is TRY terms; *_pct fields are percentages."
     return out

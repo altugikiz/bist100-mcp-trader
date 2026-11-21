@@ -1114,7 +1114,9 @@ def _laggard_diagnosis(rank_df, snap) -> dict:
     available at the snapshot date (disclosure proxy: quarter end + 45 days). It is evidence, not proof."""
     top = rank_df.sort_values("lag_score_20d").iloc[0]
     t = str(top["ticker"])
-    diag = {"ticker": t, "lag_score_20d": float(top["lag_score_20d"])}
+    diag = {"ticker": t, "lag_score_20d": float(top["lag_score_20d"]),
+            "lag_5d_pct": round(float(top["lag_score_5d"]) * 100, 2), "lag_10d_pct": round(float(top["lag_score_10d"]) * 100, 2),
+            "lag_20d_pct": round(float(top["lag_score_20d"]) * 100, 2)}
     try:
         q = _rx._quarterly_frame(t)
         q = q[q.index.map(lambda p: pd.Period(p, freq="Q").end_time + pd.Timedelta(days=45) <= snap)]

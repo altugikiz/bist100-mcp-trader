@@ -449,7 +449,7 @@ def _run_agent(question: str, model: str, think: bool = False,
         final_msg = None
         if events_done and no_session:
             final_msg = ("The tool results above already answer the question. Write the final answer now, in the question's language, "
-                         "quoting the summary_lines numbers exactly: total events, how many rose within 5 days and how many did not, "
+                         "quoting the summary_lines numbers exactly and computing no new percentages or differences yourself: total events, how many rose within 5 days and how many did not, "
                          "the average forward returns at 1, 3, 5 and 10 days, the two comparisons (RSI trough + high volume; bearish "
                          "Supertrend + below the Ichimoku cloud), any small-sample warning, and the statement about events excluded "
                          "because their forward window is incomplete.")
@@ -460,12 +460,12 @@ def _run_agent(question: str, model: str, think: bool = False,
                          "a research indication only.")
         elif weekday_done and no_session:
             final_msg = ("The tool result above already answers the question. Write the final answer now, in the question's language, "
-                         "quoting evidence_summary exactly: how often the full pattern occurred, the in-sample and out-of-sample "
+                         "quoting evidence_summary exactly and computing no new numbers yourself: how often the full pattern occurred, the in-sample and out-of-sample "
                          "probability against the unconditional probability with their sample sizes, the mean and median hold return "
                          "and the return after costs, the multiple-testing risk, and say clearly whether the pattern is stable.")
         elif catchup_done and no_session:
             final_msg = ("The tool results above already answer the question. Write the final answer now, in the question's language: "
-                         "name the most lagging stock with its 5/10/20-day lag scores, then quote the backtest evidence_summary for "
+                         "name the most lagging stock with its lag_5d_pct, lag_10d_pct and lag_20d_pct from laggard_diagnosis (percentages as given, no recomputing), then quote the backtest evidence_summary for "
                          "5, 10 and 20 days (catch-up rate, baseline, p-value, false positives), the label verdict, and the "
                          "laggard_diagnosis (structural or temporary, with its EBITDA margin and macro numbers). Say the label "
                          "POTENTIAL_CATCH_UP_CANDIDATE only if the label verdict supports it.")
