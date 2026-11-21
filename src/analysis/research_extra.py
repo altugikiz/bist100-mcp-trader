@@ -420,8 +420,9 @@ def weekday_multiday_pattern_test(ticker: str, condition: str = "Mon down, Tue d
                 f"{seg_res['mean_hold_return']*100:.2f}% and median {seg_res['median_hold_return']*100:.2f}% per condition week"
                 f" ({seg_res['mean_hold_return_net_of_cost']*100:.2f}% mean after {cost_bps:.0f} bps cost).")
     summ += (" " + hold_txt(ins, "In-sample") + " " + hold_txt(oos, "Out-of-sample")
-             + f" Multiple-testing risk: this is {n_hypotheses} pre-specified pattern (Bonferroni alpha {alpha:.4f}); scanning many weekday sequences "
-               "across many stocks would produce chance patterns, so a pattern found by search needs a much stricter threshold and out-of-sample confirmation.")
+             + (" Multiple-testing risk: checking many weekday patterns on many stocks always turns up some that look good by chance. "
+                f"Here {n_hypotheses} pattern was pre-specified, so the significance threshold is {alpha:.4f}; "
+                "a pattern found by searching would need a much stricter threshold and out-of-sample confirmation."))
     return {"ticker": ticker.upper(), "as_of": str(resolve_as_of(as_of)[0].date()), "condition": fmt(cl), "outcome": fmt(ol),
             "train_end": str(cut.date()), "full_sample": full, "in_sample": ins, "out_of_sample": oos,
             "evidence_summary": summ, "bonferroni_alpha": alpha,
@@ -576,6 +577,9 @@ def fundamental_change(ticker: str, as_of: str = "", horizons=(1, 5, 20)) -> dic
                      + ("" if d is None else f", {abs(d):.1f} percentage points {'higher' if d > 0 else 'lower'} than a year earlier") + ".")
     if nd_ebitda is not None:
         lines.append(f"Net debt / TTM EBITDA: {nd_ebitda:.2f}x.")
+    lines.append("Disclosure dates are estimates (quarter end plus 30 days for financial statements, 45 for others), not real KAP timestamps.")
+    lines.append("The 'vs sector' benchmark is the median of sector peers." if btype == "sector_peer_median" else
+                 "This stock has no sector peers, so the 'vs sector' benchmark is XU100 and equals the 'vs XU100' figures.")
     for h in horizons:
         if latest_reaction[f"window_complete_{h}d"]:
             lines.append(f"{h}-day return after disclosure: {pc(latest_reaction[f'raw_{h}d'])}; abnormal vs XU100 "

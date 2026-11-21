@@ -445,6 +445,7 @@ def _run_agent(question: str, model: str, think: bool = False,
                          and not re.search(r'summary_lines\\?": \[', t["output"]) for t in trace)
         weekday_done = any(t["tool"] == "test_weekday_pattern" and "evidence_summary" in t["output"] for t in trace)
         catchup_done = "backtest_sector_catchup" in used_now and "rank_sector_relative_strength" in used_now
+        fund_done = "calculate_fundamental_change" in used_now and "get_fundamental_metrics" in used_now
         no_session = not re.search(r"recommended action|önerilen aksiyon|run_full_analysis", question, re.I)
         final_msg = None
         if events_done and no_session:
@@ -463,6 +464,13 @@ def _run_agent(question: str, model: str, think: bool = False,
                          "quoting evidence_summary exactly and computing no new numbers yourself: how often the full pattern occurred, the in-sample and out-of-sample "
                          "probability against the unconditional probability with their sample sizes, the mean and median hold return "
                          "and the return after costs, the multiple-testing risk, and say clearly whether the pattern is stable.")
+        elif fund_done and no_session:
+            final_msg = ("The tool results above already answer the question. Write the final answer now, in the question's language, "
+                         "without computing any new numbers: list every line of quarterly_history with its estimated disclosure date, EBITDA margin, "
+                         "net debt/TTM EBITDA and abnormal returns; quote improvement_vs_reaction; state that disclosure dates are estimates "
+                         "(quarter end plus 30 or 45 days), not real KAP timestamps; say what the 'vs sector' benchmark is (benchmark_type; "
+                         "XU100 when the stock has no sector peers); say it is association, not causation, with small samples; and say the "
+                         "20-day window after the latest quarter is incomplete if the tool says so.")
         elif catchup_done and no_session:
             final_msg = ("The tool results above already answer the question. Write the final answer now, in the question's language: "
                          "name the most lagging stock with its lag_5d_pct, lag_10d_pct and lag_20d_pct from laggard_diagnosis (percentages as given, no recomputing), then quote the backtest evidence_summary for "

@@ -12,6 +12,7 @@ never rewrites the model's analysis).  Checks:
   invest_missing: a tool rejected the input (e.g. unknown sector group) but the answer has no INVESTIGATE
   numbers       : numbers in the answer that are not in any tool output
 """
+import json
 import re
 
 ALLOWED_ACTIONS = ["HOLD", "WATCH", "INVESTIGATE", "POTENTIAL_CATCH_UP_CANDIDATE",
@@ -95,6 +96,33 @@ def _is_tr(question):
     return bool(re.search(r"[çğıöşüÇĞİÖŞÜ]|\b(için|nedir|hissesi|analiz|var mı|hangi)\b", question))
 
 
+def _find_key(obj, key, depth=0):
+    """Find a string value by key inside tool output that may be JSON, a list of JSON strings, or nested."""
+    if depth > 6:
+        return None
+    if isinstance(obj, str):
+        txt = obj.strip()
+        if txt[:1] in "[{":
+            try:
+                return _find_key(json.loads(txt), key, depth + 1)
+            except Exception:
+                return None
+        return None
+    if isinstance(obj, dict):
+        if isinstance(obj.get(key), str):
+            return obj[key]
+        for v in obj.values():
+            r = _find_key(v, key, depth + 1)
+            if r:
+                return r
+    if isinstance(obj, list):
+        for v in obj:
+            r = _find_key(v, key, depth + 1)
+            if r:
+                return r
+    return None
+
+
 def check_and_repair(question, answer, trace):
     """Return (answer, violations). Repairs only by appending short, tool-grounded lines."""
     viol, add = [], []
@@ -106,6 +134,17 @@ def check_and_repair(question, answer, trace):
         answer = re.sub(r"\s*(价格)?上涨( etti)?", " yükseldi" if tr else " rose", answer)
         answer = re.sub(r"\s*(价格)?下跌( etti)?", " düştü" if tr else " fell", answer)
         answer = re.sub(r"[\u3040-\u30ff\u3400-\u9fff]+", "", answer)
+    # Weekday-pattern answers: the tool's own evidence_summary is the answer. A paraphrase once moved a number from one
+    # segment to the other (in-sample vs out-of-sample), which a "does the number exist somewhere" check cannot catch.
+    wk = None
+    for t in trace:
+        if t["tool"] == "test_weekday_pattern" and "evidence_summary" in t["output"] and '"error"' not in t["output"][:80]:
+            wk = _find_key(t["output"], "evidence_summary") or wk
+    if wk and wk not in answer:   # idempotent: the eval re-checks answers the guard already repaired
+        if tr:
+            answer = answer.rstrip() + "\n\nAraç özeti (aynen, İngilizce): " + wk
+        else:
+            answer = wk
     up = answer.upper()
 
     if _ADVICE.search(answer):
@@ -145,7 +184,7 @@ def check_and_repair(question, answer, trace):
     research = {"backtest_sector_catchup", "test_weekday_sequence", "test_weekday_pattern", "detect_reversal_events",
                 "calculate_fundamental_change", "analyze_macro_stock_relationship", "rank_sector_relative_strength"}
     if (not final_action and succeeded and any(t["tool"] in research for t in succeeded)
-            and not any(a in up for a in ALLOWED_ACTIONS) and "ANALYSIS_UNSAFE" not in up):
+            and not any(re.search(rf"\b{a}\b", answer) for a in ALLOWED_ACTIONS) and "ANALYSIS_UNSAFE" not in up):
         viol.append("label_missing")
         add.append("Research label: **INVESTIGATE** (historical evidence only; no harness action was produced)." if not tr else
                    "Araştırma etiketi: **INVESTIGATE** (yalnızca tarihsel kanıt; harness aksiyonu üretilmedi).")
@@ -163,6 +202,18 @@ def check_and_repair(question, answer, trace):
     if scope:
         viol.append("scope")
         add.append(" | ".join(scope) + ".")
+
+    # fundamental-change answers must say that disclosure dates are estimates and what the sector benchmark is
+    tt = tool_text.replace('\\"', '"')
+    if any(t["tool"] == "calculate_fundamental_change" for t in succeeded):
+        if not re.search(r"KAP", answer):
+            viol.append("kap_proxy")
+            add.append("Disclosure dates are estimates (quarter end plus 30 or 45 days), not real KAP timestamps." if not tr else
+                       "Açıklama tarihleri tahminidir (çeyrek sonu artı 30 veya 45 gün), gerçek KAP zaman damgası değildir.")
+        if '"benchmark_type": "xu100_fallback"' in tt and not re.search(r"no sector peers|sector peers|sektör.{0,25}(yok|benzer)", answer, re.I):
+            viol.append("benchmark_note")
+            add.append("This stock has no sector peers, so the 'vs sector' benchmark is XU100 and equals the 'vs XU100' figures." if not tr else
+                       "Bu hissenin sektör emsali yoktur; 'sektöre göre' kıyas ölçütü XU100'dür ve 'XU100'e göre' değerlerle aynıdır.")
 
     # ignore the label where the answer itself negates it or where an earlier correction already mentions it
     up_lbl = strip_negated_labels(re.sub(r"(CORRECTION|DÜZELTME):[^\n]*", "", up))   # first: "<label> is not supported"
