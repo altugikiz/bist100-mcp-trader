@@ -49,6 +49,7 @@ def unsupported_conclusion(answer: str, trace: list) -> bool:
             harness |= set(re.findall(r'"action\\*"\s*:\s*\\*"([A-Z_]+)', t["output"]))
     shown = guard.strip_negated_labels(re.sub(r"(DÜZELTME|CORRECTION):[^\n]*", "", answer.upper()))
     plain = re.sub(r"(DÜZELTME|CORRECTION):[^\n]*", "", answer)
+    plain = re.sub(r"\b\d+\s+(BUY|SELL|HOLD)\s+signals?\b", " ", plain)   # signal counts in a backtest summary
     # underscore labels are matched after removing negated mentions; plain words only as UPPER-CASE tokens
     # (so "mean hold return" or "435 BUY signals" in a backtest summary are not read as a conclusion)
     said = {a for a in guard.ALLOWED_ACTIONS if a not in ("INVESTIGATE", "ANALYSIS_UNSAFE", "BUY", "SELL")

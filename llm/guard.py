@@ -21,7 +21,7 @@ _FORBIDDEN_LABELS = ["BUY", "SELL", "STRONG_BUY", "STRONG_SELL", "ACCUMULATE", "
 _ADVICE = re.compile(
     r"(you should (buy|sell)|i (recommend|suggest) (buying|selling|to buy|to sell)|"
     r"is a (good|strong) buy|worth buying|time to (buy|sell)|"
-    r"(almanızı|satmanızı|alın|satın)\b.{0,20}(öneririm|tavsiye)|(alım|satım) tavsiyesi veriyorum)", re.I)
+    r"(?<!sizin )(almanızı|satmanızı|alın|satın)\b.{0,20}(öneririm|tavsiye)|(alım|satım) tavsiyesi veriyorum)", re.I)
 _DISCLAIMER = re.compile(r"(not investment advice|yatırım tavsiyesi değildir|not a recommendation)", re.I)
 _TAIL = {"tr": "Bu, eğitim amaçlı tarihsel bir analizdir; yatırım tavsiyesi değildir. Nihai karar insan incelemesine aittir.",
          "en": "This is an educational, historical analysis and not investment advice; the final decision belongs to a human reviewer."}
@@ -56,7 +56,7 @@ def unsupported_numbers(answer, tool_text):
 
 
 _NEG_TR = re.compile(r"(?:POTENTIAL_CATCH_UP_CANDIDATE|TECHNICAL_REVERSAL_CANDIDATE|FUNDAMENTAL_IMPROVEMENT_CANDIDATE)"
-                     r"[^.\n]{0,120}?(?:DESTEKLENMED|DESTEKLENM[Iİ]YOR|VER[Iİ]LEMEZ|VER[Iİ]LEMED|VER[Iİ]LMED|YAPILAMAD|ETİKETLENEMEZ|ETIKETLENEMEZ|D[EE]ĞİL|DEĞ[Iİ]L|NOT SUPPORTED)")
+                     r"[^.\n]{0,120}?(?:DESTEKLENMED|HAY[Iİ]R|ATANMAD|DESTEKLENM[Iİ]YOR|VER[Iİ]LEMEZ|VER[Iİ]LEMED|VER[Iİ]LMED|YAPILAMAD|ETİKETLENEMEZ|ETIKETLENEMEZ|D[EE]ĞİL|DEĞ[Iİ]L|NOT SUPPORTED)")
 
 
 def strip_negated_labels(up_text):
