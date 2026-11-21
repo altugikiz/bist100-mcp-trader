@@ -406,7 +406,8 @@ def weekday_multiday_pattern_test(ticker: str, condition: str = "Mon down, Tue d
     alpha = 0.05 / max(1, n_hypotheses)
     def pct(x): return "n/a" if x is None else f"{x*100:.1f}%"
     summ = (f"Pattern [{fmt(cl)}] then [{fmt(ol)}]: full pattern occurred in {full['weeks_with_full_pattern']} of {full['weeks']} weeks "
-            f"(condition met in {full['weeks_with_condition']}). "
+            f"(condition met in {full['weeks_with_condition']}; the full pattern occurred {ins['weeks_with_full_pattern']} times in-sample and "
+            f"{oos['weeks_with_full_pattern']} times out-of-sample). "
             f"In-sample (to {cut.date()}): P(outcome|condition)={pct(ins.get('p_outcome_given_condition'))} vs {pct(ins.get('p_outcome_unconditional'))} unconditional, "
             f"n={ins['weeks_with_condition']}. Out-of-sample: P={pct(oos.get('p_outcome_given_condition'))} vs {pct(oos.get('p_outcome_unconditional'))}, "
             f"n={oos['weeks_with_condition']}. "
