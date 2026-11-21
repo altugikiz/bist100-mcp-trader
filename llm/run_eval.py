@@ -58,20 +58,17 @@ def unsupported_conclusion(answer: str, trace: list) -> bool:
 
 
 def hallucinated_numbers(answer: str, tool_outputs: str) -> tuple[int, int]:
-    """Return (unsupported, total) numbers in the answer; small ints (<=10) and years are ignored."""
+    """Return (unsupported, total) numbers in the answer. Integers up to 10 and years are ignored; decimals and
+    percentages of any size are checked, with rounding tolerance at the precision printed in the answer."""
     pool = _numbers(tool_outputs)
     # dates such as 10.09.2026, 31.12 or 2026-09-10 are not measured values
-    answer = re.sub(r"\b\d{1,2}\.\d{1,2}(?:\.\d{2,4})?\b|\b\d{4}-\d{2}-\d{2}\b", " ", answer)
+    answer = re.sub(r"\b\d{1,2}\.\d{1,2}\.\d{2,4}\b|\b\d{4}-\d{2}-\d{2}\b", " ", answer)
     total = bad = 0
-    for x in _numbers(answer):
-        if abs(x) <= 10 or 1990 <= abs(x) <= 2100:
+    for x, places in guard.numbers_with_places(answer):
+        if (abs(x) <= 10 and places == 0) or 1990 <= abs(x) <= 2100:
             continue
         total += 1
-        ok = any(
-            abs(x - p) <= 0.006 * max(abs(p), 1e-9) or abs(x - p * 100) <= 0.006 * max(abs(p * 100), 1e-9)
-            for p in pool
-        )
-        bad += 0 if ok else 1
+        bad += 0 if guard.is_supported(x, places, pool) else 1
     return bad, total
 
 

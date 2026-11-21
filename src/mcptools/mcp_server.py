@@ -1624,10 +1624,10 @@ def backtest_sector_catchup(
         {"sector_group", "members", "results": {"5d": {n_signals, catchup_rate, hit_rate_abs,
          mean_return, baseline_catchup_rate_non_laggards, binomial_p_vs_baseline, ...}}, "warnings"}
     """
-    try:
-        hs = tuple(int(x) for x in str(horizons).split(",") if x.strip())
-    except ValueError:
-        return {"error": "horizons must be comma-separated integers, e.g. '5,10,20'."}
+    # Lenient parsing: '5,10,20', '5-10', '20d', '5/10/20' and lists all work; every integer found is a horizon
+    hs = tuple(dict.fromkeys(int(x) for x in re.findall(r"\d+", str(horizons)) if 0 < int(x) <= 60))
+    if not hs:
+        return {"error": "horizons must contain trading-day counts such as '5,10,20'."}
     return _sanitise(_rx.sector_catchup_backtest(sector_group, as_of, start, lag_threshold, 20, hs or (5, 10, 20), cost_bps))
 
 

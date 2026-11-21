@@ -268,6 +268,15 @@ def _run_agent(question: str, model: str, think: bool = False,
                                  "question's language, quoting the exact numbers from the tool results above."})
                 continue
             used = {t["tool"] for t in trace}
+            last_by_tool = {t["tool"]: t["output"] for t in trace}
+            failed = [n for n, o in last_by_tool.items() if re.search(r'\\?"error\\?":', o[:60])]
+            if failed and not stats.get("error_nudge") and not (failed == ["start_analysis_session"]):
+                # A research tool returned an error and the model is about to answer anyway (it would have to invent numbers)
+                stats["error_nudge"] = 1
+                messages.append({"role": "user", "content":
+                                 f"The tool call {failed[0]} returned an error. Do not answer from it and do not invent numbers: "
+                                 "read the error message, fix the arguments and call the tool again."})
+                continue
             if (not trace and not stats.get("route_nudge") and not stats.get("macro_nudge")
                     and re.search(r"\b(monday|tuesday|wednesday|thursday|friday|pazartesi|salı|çarşamba|perşembe|cuma)\b", question, re.I)
                     and re.search(r"pattern|örüntü|down|up|düşüş|yüksel", question, re.I)):
@@ -357,6 +366,9 @@ def _run_agent(question: str, model: str, think: bool = False,
                     else:
                         args.pop(k)
                     stats["args_repaired"] = stats.get("args_repaired", 0) + 1
+            if "cost_bps" in args and not re.search(r"cost|fee|slippage|commission|maliyet|komisyon|baz puan|bps|bp\b", question, re.I):
+                if args.pop("cost_bps", None) not in (None, 0, 0.0):
+                    stats["cost_dropped"] = stats.get("cost_dropped", 0) + 1   # the model invented a cost the user never gave
             if name == "detect_reversal_events":
                 # The tool already returns the single-event and combined-condition comparisons (standard_comparisons);
                 # state filters would shrink the sample, so they are dropped and the full event log is used.

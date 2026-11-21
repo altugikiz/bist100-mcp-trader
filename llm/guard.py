@@ -28,6 +28,29 @@ _TAIL = {"tr": "Bu, eğitim amaçlı tarihsel bir analizdir; yatırım tavsiyesi
 _NUM = re.compile(r"-?\d{1,3}(?:,\d{3})+(?:\.\d+)?|-?\d+(?:[.,]\d+)?")
 
 
+def numbers_with_places(text):
+    """(value, printed decimal places) for every number in text; thousands separators are read correctly."""
+    out = []
+    for tok in _NUM.findall(text):
+        grouped = re.fullmatch(r"-?\d{1,3}(?:,\d{3})+(?:\.\d+)?", tok)
+        t = tok.replace(",", "") if grouped else tok.replace(",", ".")
+        try:
+            out.append((float(t), len(t.split(".")[1]) if "." in t else 0))
+        except ValueError:
+            pass
+    return out
+
+
+def is_supported(x, places, pool):
+    """x matches a tool number within rounding at its printed precision (or as a percentage of it)."""
+    half = 0.5 * 10 ** (-places) + 1e-12
+    for p in pool:
+        for q in (p, p * 100):
+            if abs(x - q) <= max(0.006 * abs(q), half):
+                return True
+    return False
+
+
 def _numbers(text):
     out = []
     for tok in _NUM.findall(text):
@@ -43,25 +66,16 @@ _INDEX_NAMES = re.compile(r"\b(BIST[\s-]?(100|30|50)|XU(100|030)|top[\s-]?100)\b
 
 def unsupported_numbers(answer, tool_text):
     answer = _INDEX_NAMES.sub(" ", answer)   # index names such as "BIST 100" are labels, not figures
-    answer = re.sub(r"\b\d{1,2}\.\d{1,2}(?:\.\d{2,4})?\b|\b\d{4}-\d{2}-\d{2}\b", " ", answer)   # dates are not measured values
+    answer = re.sub(r"\b\d{1,2}\.\d{1,2}\.\d{2,4}\b|\b\d{4}-\d{2}-\d{2}\b", " ", answer)   # dates are not measured values
     pool = _numbers(tool_text)
     bad, total = 0, 0
-    for x in _numbers(answer):
-        if abs(x) <= 10 or 1990 <= abs(x) <= 2100:
+    for x, places in numbers_with_places(answer):
+        if (abs(x) <= 10 and places == 0) or 1990 <= abs(x) <= 2100:
             continue
         total += 1
-        if not any(abs(x - p) <= 0.006 * max(abs(p), 1e-9) or abs(x - p * 100) <= 0.006 * max(abs(p * 100), 1e-9) for p in pool):
+        if not is_supported(x, places, pool):
             bad += 1
     return bad, total
-
-
-_NEG_TR = re.compile(r"(?:POTENTIAL_CATCH_UP_CANDIDATE|TECHNICAL_REVERSAL_CANDIDATE|FUNDAMENTAL_IMPROVEMENT_CANDIDATE)"
-                     r"[^.\n]{0,120}?(?:DESTEKLENMED|HAY[Iİ]R|ATANMAD|DESTEKLENM[Iİ]YOR|VER[Iİ]LEMEZ|VER[Iİ]LEMED|VER[Iİ]LMED|YAPILAMAD|ETİKETLENEMEZ|ETIKETLENEMEZ|D[EE]ĞİL|DEĞ[Iİ]L|NOT SUPPORTED)")
-
-
-def strip_negated_labels(up_text):
-    """Remove (upper-cased) label mentions that the answer itself negates, e.g. 'etiketi desteklenmedi'."""
-    return _NEG_TR.sub("", up_text)
 
 
 def _is_tr(question):
