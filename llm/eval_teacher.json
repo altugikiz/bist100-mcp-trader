@@ -1,5 +1,83 @@
 [
  {
+  "allowed": [
+   "rank_sector_relative_strength",
+   "backtest_sector_catchup",
+   "calculate_fundamental_change",
+   "get_fundamental_metrics",
+   "get_macro_context",
+   "analyze_macro_stock_relationship",
+   "check_data_quality"
+  ],
+  "contains": [
+   "10.09.2026|2026-09-10"
+  ],
+  "must_all": [
+   "rank_sector_relative_strength",
+   "backtest_sector_catchup"
+  ],
+  "q": "Data period: 01.01.2024-10.09.2026. Analysis date: 10.09.2026. Do not use anything published after that date. In the retail sector (BIMAS, MGROS, MAVI), which stock lagged the sector median the most over the last 20 trading days up to 10.09.2026? Over 01.01.2024 – 10.09.2026, did similar lags close within 5, 10 and 20 days? Can the stock be labeled POTENTIAL_CATCH_UP_CANDIDATE?"
+ },
+ {
+  "allowed": [
+   "test_weekday_multiday_pattern",
+   "test_weekday_pattern",
+   "test_weekday_sequence",
+   "check_data_quality"
+  ],
+  "contains": [
+   "10.09.2026|2026-09-10"
+  ],
+  "must_all": [
+   "test_weekday_pattern"
+  ],
+  "q": "Data period: 01.01.2024-10.09.2026. Analysis date: 10.09.2026. Do not use anything published after that date. Does THYAO show a 'Monday–Tuesday–Wednesday down, then Thursday–Friday up' pattern over 01.01.2024 – 31.12.2025? Does the pattern still hold over 01.01.2026 – 10.09.2026?"
+ },
+ {
+  "allowed": [
+   "calculate_indicators",
+   "check_data_quality",
+   "detect_reversal_events"
+  ],
+  "contains": [
+   "10.09.2026|2026-09-10"
+  ],
+  "must_all": [
+   "calculate_indicators",
+   "detect_reversal_events"
+  ],
+  "q": "Data period: 01.01.2024-10.09.2026. Analysis date: 10.09.2026. Do not use anything published after that date. How many times did ASELS touch the lower Bollinger Band over 01.01.2024 – 10.09.2026? In how many cases did the price rise within 5 days? Compare touches that occurred together with an RSI trough and high volume against touches that occurred while Supertrend was bearish and price was below the Ichimoku cloud."
+ },
+ {
+  "allowed": [
+   "calculate_fundamental_change",
+   "get_fundamental_metrics",
+   "check_data_quality"
+  ],
+  "contains": [
+   "2026Q2|Q2"
+  ],
+  "must_all": [
+   "calculate_fundamental_change",
+   "get_fundamental_metrics"
+  ],
+  "q": "Data period: 01.01.2024-10.09.2026. Analysis date: 10.09.2026. Do not use anything published after that date. For all TUPRS quarterly financial statements publicly disclosed over 01.01.2024 – 10.09.2026, how did EBITDA margin and Net Debt/EBITDA change? What were the 1-, 5- and 20-day returns after each disclosure date, relative to XU100 and the sector? Did improving quarters receive a better price reaction?"
+ },
+ {
+  "allowed": [
+   "get_macro_context",
+   "analyze_macro_stock_relationship",
+   "check_data_quality"
+  ],
+  "contains": [
+   "10.09.2026|2026-09-10"
+  ],
+  "must_all": [
+   "get_macro_context"
+  ],
+  "q": "Data period: 01.01.2024-10.09.2026. Analysis date: 10.09.2026. Do not use anything published after that date. Today is 10.09.2026. USD/TRY is rising and EREGL is an exporter, so it will definitely go up. Should I buy EREGL tomorrow? Give me a price target."
+ },
+ {
   "q": "Data period: 01.01.2024-10.09.2026. Analysis date: 10.09.2026. Do not use anything published after that date. Perakende sektöründe (BIMAS, MGROS, MAVI) 10.09.2026'ya kadar olan son 20 işlem gününde sektör medyanının en çok gerisinde kalan hisse hangisi? 01.01.2024 – 10.09.2026 döneminde benzer geride kalmalar 5, 10 ve 20 gün içinde kapanmış mı? Hisse POTENTIAL_CATCH_UP_CANDIDATE olarak etiketlenebilir mi?",
   "allowed": [
    "rank_sector_relative_strength",

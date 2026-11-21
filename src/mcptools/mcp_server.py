@@ -1103,10 +1103,47 @@ def rank_sector_relative_strength(
         if rank_df.empty:
             groups = sorted(UNIVERSE["sector_group"].unique().tolist())
             return {"error": f"Unknown sector_group '{sector_group}'.", "valid_sector_groups": groups}
-    return _sanitise({
-        "as_of": str(snap.date()),
-        "rows":  rank_df.to_dict("records"),
-    })
+    out = {"as_of": str(snap.date()), "rows": rank_df.to_dict("records")}
+    if sector_group and len(rank_df) > 1:
+        out["laggard_diagnosis"] = _laggard_diagnosis(rank_df, snap)
+    return _sanitise(out)
+
+
+def _laggard_diagnosis(rank_df, snap) -> dict:
+    """Heuristic structural-vs-temporary check for the most lagging stock, from fundamentals and macro data
+    available at the snapshot date (disclosure proxy: quarter end + 45 days). It is evidence, not proof."""
+    top = rank_df.sort_values("lag_score_20d").iloc[0]
+    t = str(top["ticker"])
+    diag = {"ticker": t, "lag_score_20d": float(top["lag_score_20d"])}
+    try:
+        q = _rx._quarterly_frame(t)
+        q = q[q.index.map(lambda p: pd.Period(p, freq="Q").end_time + pd.Timedelta(days=45) <= snap)]
+        q = q.assign(margin=q["ebitda"] / q["revenue"])
+        last, prev = q.iloc[-1], q.iloc[-5:-1]["margin"].mean() if len(q) >= 5 else None
+        diag["latest_disclosed_quarter"] = str(q.index[-1])
+        diag["ebitda_margin_latest"] = float(last["margin"])
+        if prev is not None and prev == prev:
+            diag["ebitda_margin_prior_4q_average"] = float(prev)
+        fund_bad = prev is not None and prev == prev and (last["margin"] < prev - 0.02 or (prev > 0 and last["margin"] < 0.5 * prev))
+    except Exception as exc:   # no fundamentals file for this ticker
+        diag["fundamentals"] = f"not available ({str(exc)[:60]})"
+        fund_bad = None
+    try:
+        macro = pd.read_csv(os.path.join(_PROJ_ROOT, "data", "macro", "macro_daily.csv"), index_col="Date", parse_dates=True).loc[:snap]
+        w = macro.iloc[-21:]
+        diag["usdtry_change_20d"] = float(w["usdtry"].iloc[-1] / w["usdtry"].iloc[0] - 1)
+        diag["tcmb_rate_latest"] = float(macro["tcmb_rate"].iloc[-1])
+    except Exception:
+        pass
+    if fund_bad is None:
+        diag["classification"] = "undetermined: no fundamentals for this stock"
+    elif fund_bad:
+        diag["classification"] = "possibly STRUCTURAL: the latest EBITDA margin is more than 2 percentage points below, or under half of, its prior four-quarter average"
+    else:
+        diag["classification"] = ("looks TEMPORARY: no fundamental deterioration in the latest disclosed quarter (EBITDA margin not "
+                                  "more than 2 percentage points below, nor under half of, its prior four-quarter average); the lag appears price-driven")
+    diag["note"] = "Heuristic from disclosed fundamentals and macro data; it is not proof and says nothing about the future."
+    return diag
 
 
 @mcp.tool()
@@ -1160,7 +1197,11 @@ def test_weekday_pattern(
                     parts = [txt(cond), txt(outc)]
         if len(parts) != 2 or not parts[0].strip() or not parts[1].strip():
             return {"error": "pattern must be 'condition then outcome', e.g. 'Mon down, Tue down, Wed down, then Thu up, Fri up'."}
-        return _sanitise(_rx.weekday_multiday_pattern_test(ticker, parts[0], parts[1], end_date, start_date, train_end, cost_bps, 1))
+        cost_used = cost_bps if cost_bps else 20.0   # assumed round-trip cost when none is given (stated in the summary)
+        res = _rx.weekday_multiday_pattern_test(ticker, parts[0], parts[1], end_date, start_date, train_end, cost_used, 1)
+        if not cost_bps and isinstance(res, dict) and "evidence_summary" in res:
+            res["evidence_summary"] += " (No cost was specified, so an assumed round-trip cost of 20 bps was used.)"
+        return _sanitise(res)
     df = _load_price_df(ticker, end_date)
     df = df.loc[df.index >= _rx._ts(start_date or _rx.DEFAULT_START)]
     df = calculate_weekday_returns(df)

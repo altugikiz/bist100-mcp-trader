@@ -277,7 +277,7 @@ def _run_agent(question: str, model: str, think: bool = False,
                 messages.append({"role": "user", "content":
                                  "Do not answer yet. Call get_macro_context (start_date 2024-01-01, end_date 2026-09-10) and "
                                  f"analyze_macro_stock_relationship for {next(iter(named))} first, then answer with the historical "
-                                 "relationship, no recommendation, no price target, and end with INVESTIGATE."})
+                                 "relationship (include the latest CBRT policy rate and the USD/TRY move from get_macro_context), no recommendation, no price target, and end with INVESTIGATE."})
                 continue
             if ("calculate_fundamental_change" in used and "get_fundamental_metrics" not in used
                     and "get_fundamental_metrics" in by_name and not stats.get("metrics_nudge")):
@@ -285,7 +285,8 @@ def _run_agent(question: str, model: str, think: bool = False,
                 messages.append({"role": "user", "content":
                                  "Before answering, also call get_fundamental_metrics for the same ticker (period 2026Q2) "
                                  "to confirm the latest quarter, then write the answer: list EVERY quarter from quarterly_history of the earlier "
-                                 "calculate_fundamental_change result (EBITDA margin, Net Debt/EBITDA, 1/5/20-day abnormal returns), "
+                                 "calculate_fundamental_change result, ONE short line per quarter, for example '2024Q1: EBITDA margin 3.7%, "
+                                 "Net Debt/EBITDA n/a, abnormal 1d -2.0%, 5d +0.1%, 20d -9.7% (vs XU100; sector figure given if different)', "
                                  "flag the Q2 2026 20-day return as incomplete, make no causal claim, and use only numbers printed by the tools."})
                 continue
             if not (msg.get("content") or "").strip() and trace and not nudged:
@@ -395,12 +396,32 @@ def _run_agent(question: str, model: str, think: bool = False,
         # A research tool that already returned its plain-language summary lines is complete: do not drift into the
         # session workflow (start_analysis_session / run_full_analysis) for a pure event-statistics question.
         events_done = any(t["tool"] == "detect_reversal_events" and re.search(r'summary_lines\\?": \[', t["output"]) for t in trace)
-        if not final_only and events_done and not re.search(r"recommended action|önerilen aksiyon|run_full_analysis", question, re.I):
+        used_now = {t["tool"] for t in trace}
+        weekday_done = any(t["tool"] == "test_weekday_pattern" and "evidence_summary" in t["output"] for t in trace)
+        catchup_done = "backtest_sector_catchup" in used_now and "rank_sector_relative_strength" in used_now
+        no_session = not re.search(r"recommended action|önerilen aksiyon|run_full_analysis", question, re.I)
+        final_msg = None
+        if events_done and no_session:
+            final_msg = ("The tool results above already answer the question. Write the final answer now, in the question's language, "
+                         "quoting the summary_lines numbers exactly: total events, how many rose within 5 days and how many did not, "
+                         "the average forward returns at 1, 3, 5 and 10 days, the two comparisons (RSI trough + high volume; bearish "
+                         "Supertrend + below the Ichimoku cloud), any small-sample warning, and the statement about events excluded "
+                         "because their forward window is incomplete.")
+        elif weekday_done and no_session:
+            final_msg = ("The tool result above already answers the question. Write the final answer now, in the question's language, "
+                         "quoting evidence_summary exactly: how often the full pattern occurred, the in-sample and out-of-sample "
+                         "probability against the unconditional probability with their sample sizes, the mean and median hold return "
+                         "and the return after costs, the multiple-testing risk, and say clearly whether the pattern is stable.")
+        elif catchup_done and no_session:
+            final_msg = ("The tool results above already answer the question. Write the final answer now, in the question's language: "
+                         "name the most lagging stock with its 5/10/20-day lag scores, then quote the backtest evidence_summary for "
+                         "5, 10 and 20 days (catch-up rate, baseline, p-value, false positives), the label verdict, and the "
+                         "laggard_diagnosis (structural or temporary, with its EBITDA margin and macro numbers). Say the label "
+                         "POTENTIAL_CATCH_UP_CANDIDATE only if the label verdict supports it.")
+        if not final_only and final_msg:
             final_only = True
             stats["forced_final"] = 1
-            messages.append({"role": "user", "content":
-                             "The tool results above already answer the question. Write the final answer now: quote the "
-                             "summary_lines numbers exactly (total events, how many rose within 5 days, and the two comparisons)."})
+            messages.append({"role": "user", "content": final_msg})
             continue
         if not final_only and ((analysis_done and round_failed) or len(trace) >= 8):
             # The harness has already produced its answer (or the model is looping): ask for the write-up
