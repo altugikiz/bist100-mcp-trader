@@ -10,3 +10,11 @@ data/llm_train/
 llm/adapters*/
 llm/fused*/
 data/_backup_before_refresh/
+submission_package*
+data/llm_train_v1_backup/
+data/llm_train_v2/
+data/llm_stress/
+data/llm_train_v3/
+data/llm_train_v4/
+data/llm_train_v5/
+data/llm_train_v6/

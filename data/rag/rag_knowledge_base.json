@@ -1,0 +1,488 @@
+{
+  "schema": "bist100-rag-knowledge-base/1",
+  "created_at": "2026-11-26T17:49:54+03:00",
+  "retrieval": "direct lookup by ticker and date range (get_news_events); no embeddings, no vector index",
+  "limitations": "10 curated events over ASELS, TOASO and BIMAS only; no speech-to-text or live news feed",
+  "documents": [
+    {
+      "id": "event-01",
+      "type": "news_event",
+      "ticker": "ASELS",
+      "date": "2024-12-25",
+      "category": "export_contract",
+      "text": "Signed a $58.6M export contract with a Turkic States Organization member country for electro-optic and communication systems (KAP disclosure).",
+      "source": {
+        "source_type": "company_disclosure",
+        "origin": "manually curated from public reporting; summarised in original wording",
+        "url": null,
+        "url_note": "per-event URLs were not recorded when the list was compiled"
+      }
+    },
+    {
+      "id": "event-02",
+      "type": "news_event",
+      "ticker": "ASELS",
+      "date": "2025-02-25",
+      "category": "earnings",
+      "text": "FY2024 results: record ~$1B in new export contracts signed, first-ever contracts with 7 new countries, first exports of 31 distinct products.",
+      "source": {
+        "source_type": "company_disclosure",
+        "origin": "manually curated from public reporting; summarised in original wording",
+        "url": null,
+        "url_note": "per-event URLs were not recorded when the list was compiled"
+      }
+    },
+    {
+      "id": "event-03",
+      "type": "news_event",
+      "ticker": "ASELS",
+      "date": "2025-08-06",
+      "category": "earnings",
+      "text": "H1 2025 results: $1.3B in export contracts signed; Net Debt/EBITDA improved sharply from 1.21x (H1 2024) to 0.57x (H1 2025).",
+      "source": {
+        "source_type": "company_disclosure",
+        "origin": "manually curated from public reporting; summarised in original wording",
+        "url": null,
+        "url_note": "per-event URLs were not recorded when the list was compiled"
+      }
+    },
+    {
+      "id": "event-04",
+      "type": "news_event",
+      "ticker": "ASELS",
+      "date": "2025-12-24",
+      "category": "export_contract",
+      "text": "Full-year 2025 new export contracts surpassed $2.01B (record), including a $410M electronic warfare systems deal with a European NATO member.",
+      "source": {
+        "source_type": "news_aggregator",
+        "origin": "manually curated from public reporting; summarised in original wording",
+        "url": null,
+        "url_note": "per-event URLs were not recorded when the list was compiled"
+      }
+    },
+    {
+      "id": "event-05",
+      "type": "news_event",
+      "ticker": "TOASO",
+      "date": "2025-02-13",
+      "category": "earnings",
+      "text": "FY2024 results: sales volume fell 33% YoY to 174K units; consolidated net profit collapsed 76% to 5.22B TRY from 21.78B TRY in 2023, driven by weak domestic/export volumes and the end of Fiorino production.",
+      "source": {
+        "source_type": "company_disclosure",
+        "origin": "manually curated from public reporting; summarised in original wording",
+        "url": null,
+        "url_note": "per-event URLs were not recorded when the list was compiled"
+      }
+    },
+    {
+      "id": "event-06",
+      "type": "news_event",
+      "ticker": "TOASO",
+      "date": "2025-04-18",
+      "category": "corporate_action",
+      "text": "KAP disclosure: negotiations opened with Stellantis for a new CKD light-vehicle export project; investment up to EUR 256M, targeting ~150K units/year capacity by 2026.",
+      "source": {
+        "source_type": "company_disclosure",
+        "origin": "manually curated from public reporting; summarised in original wording",
+        "url": null,
+        "url_note": "per-event URLs were not recorded when the list was compiled"
+      }
+    },
+    {
+      "id": "event-07",
+      "type": "news_event",
+      "ticker": "TOASO",
+      "date": "2025-04-29",
+      "category": "financial_result",
+      "text": "2025Q1 results disclosed a net loss of approximately 197M TRY amid weak domestic and export demand.",
+      "source": {
+        "source_type": "company_disclosure",
+        "origin": "manually curated from public reporting; summarised in original wording",
+        "url": null,
+        "url_note": "per-event URLs were not recorded when the list was compiled"
+      }
+    },
+    {
+      "id": "event-08",
+      "type": "news_event",
+      "ticker": "BIMAS",
+      "date": "2025-02-19",
+      "category": "regulatory",
+      "text": "Turkish Competition Authority fined BIM approximately 1.3B TRY for obstructing an on-site inspection (an employee deleted WhatsApp messages during a raid); the stock fell about 4.2% on the news.",
+      "source": {
+        "source_type": "news_aggregator",
+        "origin": "manually curated from public reporting; summarised in original wording",
+        "url": null,
+        "url_note": "per-event URLs were not recorded when the list was compiled"
+      }
+    },
+    {
+      "id": "event-09",
+      "type": "news_event",
+      "ticker": "BIMAS",
+      "date": "2025-03-10",
+      "category": "earnings",
+      "text": "FY2024 results: 18.6B TRY net profit, 206 new stores opened in Q4 2024 (total 13,583); disclosed early discounted fine payment of 971.9M TRY while appealing, cash impact expected in Q1 2025; a new Competition Authority investigation was opened the same week.",
+      "source": {
+        "source_type": "company_disclosure",
+        "origin": "manually curated from public reporting; summarised in original wording",
+        "url": null,
+        "url_note": "per-event URLs were not recorded when the list was compiled"
+      }
+    },
+    {
+      "id": "event-10",
+      "type": "news_event",
+      "ticker": "BIMAS",
+      "date": "2025-08-15",
+      "category": "corporate_action",
+      "text": "Q2 2025 results: 266 new stores opened (total 14,075, +7% YoY); the FILE brand was formally spun off into a separate subsidiary structure.",
+      "source": {
+        "source_type": "company_disclosure",
+        "origin": "manually curated from public reporting; summarised in original wording",
+        "url": null,
+        "url_note": "per-event URLs were not recorded when the list was compiled"
+      }
+    },
+    {
+      "id": "datadict-01",
+      "type": "reference",
+      "title": "Data Dictionary — Integrated BIST 100 Agentic Financial Analytics Harness",
+      "text": "# Data Dictionary — Integrated BIST 100 Agentic Financial Analytics Harness\n\nThis document describes every structured and unstructured feature produced or consumed by the\nsystem, per the project brief's Section 36 requirement. It is organized by pipeline stage.\n\n---",
+      "source": {
+        "source_type": "project_document",
+        "path": "docs/DATA_DICTIONARY.md"
+      }
+    },
+    {
+      "id": "datadict-02",
+      "type": "reference",
+      "title": "1. Market Data (`data/universe_cache/<TICKER>.csv`)",
+      "text": "## 1. Market Data (`data/universe_cache/<TICKER>.csv`)\n\n| Field | Type | Description |\n|---|---|---|\n| `Date` | date | Trading date (index) |\n| `Open`, `High`, `Low`, `Close` | float | Daily OHLC price (TRY) |\n| `Volume` | int | Shares traded |\n\nSource: Yahoo Finance (`yfinance`). Coverage: 2023-01-02 to 2026-09-10 (analysis date 2026-09-10), 30 tickers + XU100 benchmark.",
+      "source": {
+        "source_type": "project_document",
+        "path": "docs/DATA_DICTIONARY.md"
+      }
+    },
+    {
+      "id": "datadict-03",
+      "type": "reference",
+      "title": "2. Technical Indicators (`src/analysis/indicators.py`)",
+      "text": "## 2. Technical Indicators (`src/analysis/indicators.py`)\n\n| Field | Description |\n|---|---|\n| `SMA20`, `SMA50` | Simple moving averages (20/50-day) |\n| `RSI14` | 14-day Relative Strength Index (0–100) |\n| `MACD`, `MACD_Signal`, `MACD_Hist` | Moving Average Convergence Divergence, its signal line, and histogram |\n| `BB_Upper`, `BB_Middle`, `BB_Lower` | Bollinger Bands (20-day, 2σ) |\n| `ATR` | 14-day Average True Range |\n| `KAMA` | Kaufman's Adaptive Moving Average |\n| `KAMA_Slope` | Categorical: `rising` / `falling` / `flat` |\n| `Supertrend` | Supertrend line value |\n| `Supertrend_Direction` | Categorical: `bullish` / `bearish` |\n| `Tenkan_sen`, `Kijun_sen`, `Senkou_Span_A`, `Senkou_Span_B`, `Chikou_Span` | Ichimoku Cloud components |\n| `Ichimoku_State` | Categorical: `above_cloud` / `below_cloud` / `in_cloud` |\n| `technical_score` | 0–5 composite score (see `strategy.py`: SMA20>SMA50, Close>SMA20, RSI 30–70, MACD bullish, near support) |",
+      "source": {
+        "source_type": "project_document",
+        "path": "docs/DATA_DICTIONARY.md"
+      }
+    },
+    {
+      "id": "datadict-04",
+      "type": "reference",
+      "title": "3. Support/Resistance (`src/analysis/support_resistance.py`)",
+      "text": "## 3. Support/Resistance (`src/analysis/support_resistance.py`)\n\n| Field | Description |\n|---|---|\n| `date`, `price` | Pivot high/low date and price (`scipy.signal.argrelextrema`, order=5) |\n| `total_pivots.highs`, `.lows` | Count of detected resistance/support pivots |",
+      "source": {
+        "source_type": "project_document",
+        "path": "docs/DATA_DICTIONARY.md"
+      }
+    },
+    {
+      "id": "datadict-05",
+      "type": "reference",
+      "title": "4. Reversal Events (`data/events/<...>_events.csv`, `src/analysis/reversal_events.py`)",
+      "text": "## 4. Reversal Events (`data/events/<...>_events.csv`, `src/analysis/reversal_events.py`)\n\n| Field | Description |\n|---|---|\n| `ticker` | Stock symbol |\n| `event_type` | One of: `lower_band_touch`, `middle_band_test`, `upper_band_touch`, `rsi_trough`, `rsi_peak`, `supertrend_flip_bullish`, `supertrend_flip_bearish`, `bullish_kama_cross`, `bearish_kama_cross`, `cloud_breakout`, `cloud_breakdown`, `cloud_rejection`, `cloud_entry`, `kama_slope_turn_up`, `kama_slope_turn_down`, `support_touch`, `resistance_touch` |\n| `level_price`, `level_age_days`, `prior_touches` | Only for `support_touch` / `resistance_touch`: price of the confirmed pivot level, calendar days since the pivot, number of earlier touches of the same level (a pivot is used only after its `order`-bar confirmation, so there is no look-ahead) |\n| `event_date` | Date the event occurred |\n| `close_price` | Close price on event date |\n| `rsi_state`, `supertrend_state`, `kama_slope`, `ichimoku_state` | Market-state context at event time |\n| `volume_regime` | `high` / `normal` (vs. 20-day average volume) |\n| `forward_return_1d/3d/5d/10d` | Forward return after the event (strictly post-event, no look-ahead) |\n| `trend_regime` | `rising` / `falling` (XU100, trailing 20-day) |\n| `vol_regime` | `high_vol` / `low_vol` (relative to universe median) |",
+      "source": {
+        "source_type": "project_document",
+        "path": "docs/DATA_DICTIONARY.md"
+      }
+    },
+    {
+      "id": "datadict-06",
+      "type": "reference",
+      "title": "5. Sector Analysis (`src/analysis/sector_analysis.py`)",
+      "text": "## 5. Sector Analysis (`src/analysis/sector_analysis.py`)\n\n| Field | Description |\n|---|---|\n| `sector_group` | Consolidated sector (15 groups; see `universe.py`) |\n| `benchmark_type` | `sector` or `xu100_fallback` |\n| `lag_score_5/10/20` | Ticker return minus benchmark return, over N days |\n| `potential_catchup_flag` | Boolean; True if laggard (20d) + technical turn (KAMA rising or Supertrend flip) |\n| `reason` | Text explanation for the flag |",
+      "source": {
+        "source_type": "project_document",
+        "path": "docs/DATA_DICTIONARY.md"
+      }
+    },
+    {
+      "id": "datadict-07",
+      "type": "reference",
+      "title": "6. Calendar Patterns (`data/events/calendar_patterns.csv`, `sequence_patterns.csv`)",
+      "text": "## 6. Calendar Patterns (`data/events/calendar_patterns.csv`, `sequence_patterns.csv`)\n\n| Field | Description |\n|---|---|\n| `Weekday` | Monday–Friday |\n| `N`, `Mean_Return`, `Median_Return`, `Positive_Rate` | Per-weekday statistics |\n| `T_Stat`, `P_Value` | One-sample t-test vs. ticker's overall mean |\n| `significant_after_correction` | Boolean, Bonferroni-corrected (α = 0.05/150) |\n| `pattern` (sequence file) | One of `three_down_then_rebound`, `post_large_down_reversal`, `monday_weakness_friday_strength` |\n| `occurrence_count`, `avg_continuation_return`, `hit_rate` | Per-pattern statistics |",
+      "source": {
+        "source_type": "project_document",
+        "path": "docs/DATA_DICTIONARY.md"
+      }
+    },
+    {
+      "id": "datadict-08",
+      "type": "reference",
+      "title": "7. Fundamental Data (`data/fundamentals/<TICKER>_fundamentals.csv`)",
+      "text": "## 7. Fundamental Data (`data/fundamentals/<TICKER>_fundamentals.csv`)\n\n| Field | Description |\n|---|---|\n| `period` | Quarter label (e.g., `2025Q3`) |\n| `revenue`, `ebitda`, `net_profit` | Million TRY, quarterly (derived via consecutive-difference for several tickers — see README methodology note) |\n| `total_assets`, `shareholders_equity`, `net_debt` | Million TRY, balance-sheet snapshot at quarter-end |\n| `financial_debt`, `cash` | Used to derive `net_debt` where applicable |\n| *(ASELS only, 24-field schema)* | `gross_profit`, `operating_profit`, `operating_cash_flow`, `investing_cash_flow`, `financing_cash_flow`, `current_liabilities`, `inventory`, `current_assets` |\n| `ebitda_margin`, `net_profit_margin`, `roe`, `roa`, `net_debt_ebitda`, `debt_equity`, `current_ratio`, `quick_ratio` | Derived ratios (`calculate_derived_ratios`) |\n| `revenue_growth_yoy`, `net_profit_growth_yoy` | Year-over-year growth |\n| `crit_revenue_growth`, `crit_net_profit_growth`, `crit_roe`, `crit_net_debt_ebitda`, `crit_pe` | Boolean pass/fail per fundamental-score criterion |\n| `fundamental_score` | 0–5 composite score |\n\nNote: `ebitda` and `net_debt` are intentionally `NaN` for AKBNK (bank; not economically meaningful line items).",
+      "source": {
+        "source_type": "project_document",
+        "path": "docs/DATA_DICTIONARY.md"
+      }
+    },
+    {
+      "id": "datadict-09",
+      "type": "reference",
+      "title": "8. Point-in-Time Alignment (`src/analysis/point_in_time.py`)",
+      "text": "## 8. Point-in-Time Alignment (`src/analysis/point_in_time.py`)\n\n| Field | Description |\n|---|---|\n| `disclosure_date` | Estimated KAP disclosure date (proxy: quarter-end + 30 days for Financials, +45 days otherwise, business-day adjusted) |\n| `quarter` | Fiscal quarter the disclosure covers |",
+      "source": {
+        "source_type": "project_document",
+        "path": "docs/DATA_DICTIONARY.md"
+      }
+    },
+    {
+      "id": "datadict-10",
+      "type": "reference",
+      "title": "9. Macro Context (`data/macro/macro_daily.csv`)",
+      "text": "## 9. Macro Context (`data/macro/macro_daily.csv`)\n\n| Field | Description |\n|---|---|\n| `usdtry`, `eurtry` | Daily FX rate (Yahoo Finance, no key required) |\n| `tcmb_rate` | TCMB policy rate (%), step function from 10 official PPK decisions |\n| `fed_rate` | Fed funds rate upper bound (%), step function from 7 official FOMC decisions |\n| `tufe_yoy` | TÜİK CPI year-over-year (%), interpolated between 8 confirmed anchor points; `NaN` before 2024-05-31 (first anchor) |",
+      "source": {
+        "source_type": "project_document",
+        "path": "docs/DATA_DICTIONARY.md"
+      }
+    },
+    {
+      "id": "datadict-11",
+      "type": "reference",
+      "title": "10. News Events (`src/analysis/news_events.py`)",
+      "text": "## 10. News Events (`src/analysis/news_events.py`)\n\n| Field | Description |\n|---|---|\n| `ticker` | Stock symbol (ASELS, TOASO, or BIMAS) |\n| `date` | Event date |\n| `category` | One of: `earnings`, `export_contract`, `regulatory`, `corporate_action`, `financial_result` |\n| `summary` | Original-wording summary of the publicly reported event (not a verbatim quote) |\n| `source_type` | `company_disclosure` or `news_aggregator` |\n| `forward_return_1d/5d/20d` | Post-event forward return |",
+      "source": {
+        "source_type": "project_document",
+        "path": "docs/DATA_DICTIONARY.md"
+      }
+    },
+    {
+      "id": "datadict-12",
+      "type": "reference",
+      "title": "11. Fundamental Reaction Dataset (`data/events/fundamental_reaction.csv`)",
+      "text": "## 11. Fundamental Reaction Dataset (`data/events/fundamental_reaction.csv`)\n\n| Field | Description |\n|---|---|\n| `ticker`, `quarter` | Identifiers |\n| `revenue_growth`, `net_profit_growth`, `roe_change`, `net_debt_ebitda_change` | QoQ/YoY fundamental change |\n| `abnormal_return_1d/5d/20d` (vs. XU100) | Ticker return minus XU100 return, post-disclosure |\n| `sector_abnormal_return_1d/5d/20d` | Ticker return minus sector-group median return |",
+      "source": {
+        "source_type": "project_document",
+        "path": "docs/DATA_DICTIONARY.md"
+      }
+    },
+    {
+      "id": "datadict-13",
+      "type": "reference",
+      "title": "12. Strategy & Backtest (`src/strategy/`)",
+      "text": "## 12. Strategy & Backtest (`src/strategy/`)\n\n| Field | Description |\n|---|---|\n| `Total_Score` | 0.50 × `technical_score` + 0.50 × `fundamental_score` |\n| `Signal` | `BUY` (≥3.0) / `SELL` (≤1.5) / `HOLD` — internal backtest label only, not part of the harness action space |\n| `Position` | Shifted signal (t+1) to avoid look-ahead bias |\n| `cumulative_return_pct`, `sharpe_ratio`, `max_drawdown_pct`, `win_rate_pct` | Backtest performance metrics |\n| `days_invested`, `trading_days` | Exposure statistics |",
+      "source": {
+        "source_type": "project_document",
+        "path": "docs/DATA_DICTIONARY.md"
+      }
+    },
+    {
+      "id": "datadict-14",
+      "type": "reference",
+      "title": "13. Agent Harness (`src/harness/`)",
+      "text": "## 13. Agent Harness (`src/harness/`)\n\n| Field | Description |\n|---|---|\n| `session_id` | UUID for an analysis session |\n| `current_state`, `state_history` | Position in the 17-state machine |\n| `tool_call_log` | Timestamped list of `{state, tool_name, input_summary, output_summary}` |\n| `observed_context` | All raw computed features for a session (unfiltered) |\n| `committed_evidence` | Selected list of `{id, statement, source_tool, value}` — the subset used in the final explanation |\n| `gate_result.status` | `PASS` / `PASS_WITH_WARNINGS` / `INVESTIGATE` / `ANALYSIS_UNSAFE` / `HARD_BLOCK` |\n| `gate_result.warnings`, `.blocks` | Lists of triggered soft-warning / hard-block reasons |\n| `action` | One of the 8 finite educational actions (see README) |\n| `reasoning` | List of evidence-id references supporting the action |\n| `human_review.result` | `ACCEPT` / `MODIFY` / `REJECT` |\n| `human_review.reason`, `.reviewer_note` | Free-text justification |\n\n---\n\n*This dictionary covers the fields produced by the pipeline as of the final submission. For exact\ncolumn order and dtypes, refer to each module's docstring in `src/`.*",
+      "source": {
+        "source_type": "project_document",
+        "path": "docs/DATA_DICTIONARY.md"
+      }
+    },
+    {
+      "id": "tool-get_stock_history",
+      "type": "tool_description",
+      "title": "get_stock_history",
+      "text": "Fetch daily OHLCV (Open, High, Low, Close, Volume) price history for a stock from Yahoo Finance and return the most recent `last_n` rows.",
+      "source": {
+        "source_type": "mcp_server_docstring",
+        "path": "src/mcptools/mcp_server.py"
+      }
+    },
+    {
+      "id": "tool-calculate_indicators",
+      "type": "tool_description",
+      "title": "calculate_indicators",
+      "text": "Compute the technical indicators for a stock (SMA20/50, RSI14, MACD, Bollinger Bands, ATR, KAMA and its slope, Supertrend direction, Ichimoku state, volume regime) and return their latest values.",
+      "source": {
+        "source_type": "mcp_server_docstring",
+        "path": "src/mcptools/mcp_server.py"
+      }
+    },
+    {
+      "id": "tool-find_support_resistance_levels",
+      "type": "tool_description",
+      "title": "find_support_resistance_levels",
+      "text": "Detect pivot high (resistance) and pivot low (support) price levels using scipy.signal.argrelextrema and return the `nearest_n` levels closest to the current price.",
+      "source": {
+        "source_type": "mcp_server_docstring",
+        "path": "src/mcptools/mcp_server.py"
+      }
+    },
+    {
+      "id": "tool-get_fundamental_metrics",
+      "type": "tool_description",
+      "title": "get_fundamental_metrics",
+      "text": "Return all fundamental financial metrics for a given quarter from the local Fintables CSV (data/fintables_asels.csv).",
+      "source": {
+        "source_type": "mcp_server_docstring",
+        "path": "src/mcptools/mcp_server.py"
+      }
+    },
+    {
+      "id": "tool-get_fundamental_score",
+      "type": "tool_description",
+      "title": "get_fundamental_score",
+      "text": "Compute the fundamental quality score (0-5) for a given quarter and return the score together with a True/False breakdown of each criterion.",
+      "source": {
+        "source_type": "mcp_server_docstring",
+        "path": "src/mcptools/mcp_server.py"
+      }
+    },
+    {
+      "id": "tool-run_backtest_summary",
+      "type": "tool_description",
+      "title": "run_backtest_summary",
+      "text": "Run the full strategy pipeline (technical + fundamental scoring → signal generation → backtest) and return key performance metrics.",
+      "source": {
+        "source_type": "mcp_server_docstring",
+        "path": "src/mcptools/mcp_server.py"
+      }
+    },
+    {
+      "id": "tool-start_analysis_session",
+      "type": "tool_description",
+      "title": "start_analysis_session",
+      "text": "Create a new analysis session for the given ticker and advance the harness through its initial states: START → SELECT_UNIVERSE → LOAD_MARKET_DATA → CHECK_DATA_QUALITY.",
+      "source": {
+        "source_type": "mcp_server_docstring",
+        "path": "src/mcptools/mcp_server.py"
+      }
+    },
+    {
+      "id": "tool-run_full_analysis",
+      "type": "tool_description",
+      "title": "run_full_analysis",
+      "text": "Advance the session from CHECK_DATA_QUALITY to BUILD_EVIDENCE, running every analysis phase in the correct order:",
+      "source": {
+        "source_type": "mcp_server_docstring",
+        "path": "src/mcptools/mcp_server.py"
+      }
+    },
+    {
+      "id": "tool-get_recommended_action",
+      "type": "tool_description",
+      "title": "get_recommended_action",
+      "text": "Determine the analytical action for this session by running the decision tree from action_space.py. Advances the harness through PREVIEW_STRATEGIES, RUN_BACKTEST, RISK_GATE, and GENERATE_EXPLANATION states.",
+      "source": {
+        "source_type": "mcp_server_docstring",
+        "path": "src/mcptools/mcp_server.py"
+      }
+    },
+    {
+      "id": "tool-get_session_replay",
+      "type": "tool_description",
+      "title": "get_session_replay",
+      "text": "Return a human-readable replay of the completed decision log for this session. Includes state history, tool call trace, committed evidence, gate result, agent conclusion, and human review verdict.",
+      "source": {
+        "source_type": "mcp_server_docstring",
+        "path": "src/mcptools/mcp_server.py"
+      }
+    },
+    {
+      "id": "tool-rank_sector_relative_strength",
+      "type": "tool_description",
+      "title": "rank_sector_relative_strength",
+      "text": "Rank stocks by sector-relative lag score (stock return minus sector-median return) over 5, 10 and 20 trading days. A strongly negative lag score means the stock is lagging its peers; it is a research flag, NOT a BUY.",
+      "source": {
+        "source_type": "mcp_server_docstring",
+        "path": "src/mcptools/mcp_server.py"
+      }
+    },
+    {
+      "id": "tool-test_weekday_pattern",
+      "type": "tool_description",
+      "title": "test_weekday_pattern",
+      "text": "Test weekday patterns. With `pattern` (e.g. 'Monday, Tuesday, Wednesday down, then Thursday, Friday up') it tests that multi-day sequence: occurrences, probability against unconditional, mean and median returns, costs,.",
+      "source": {
+        "source_type": "mcp_server_docstring",
+        "path": "src/mcptools/mcp_server.py"
+      }
+    },
+    {
+      "id": "tool-detect_reversal_events",
+      "type": "tool_description",
+      "title": "detect_reversal_events",
+      "text": "Detect timestamped technical reversal events (Bollinger touches, RSI extrema, Supertrend flips, KAMA crosses, Ichimoku events) and report historical statistics: count, forward returns over 1/3/5/10 trading days,.",
+      "source": {
+        "source_type": "mcp_server_docstring",
+        "path": "src/mcptools/mcp_server.py"
+      }
+    },
+    {
+      "id": "tool-get_macro_context",
+      "type": "tool_description",
+      "title": "get_macro_context",
+      "text": "Market-wide macro levels and changes (USD/TRY, EUR/TRY, TCMB policy rate, TUIK inflation, Fed rate) for a date range. Takes no ticker; for a stock's relationship with a macro series use analyze_macro_stock_relationship.",
+      "source": {
+        "source_type": "mcp_server_docstring",
+        "path": "src/mcptools/mcp_server.py"
+      }
+    },
+    {
+      "id": "tool-get_news_events",
+      "type": "tool_description",
+      "title": "get_news_events",
+      "text": "Return curated, timestamped news/corporate events for a ticker with source metadata. The set is a small hand-curated list (no licensed news feed and no speech-to-text), so treat absence of events as \"not covered\", not.",
+      "source": {
+        "source_type": "mcp_server_docstring",
+        "path": "src/mcptools/mcp_server.py"
+      }
+    },
+    {
+      "id": "tool-check_data_quality",
+      "type": "tool_description",
+      "title": "check_data_quality",
+      "text": "Run the Risk & Data Quality gate for a ticker without opening a session: universe membership, price-history NaN rate, look-ahead check on fundamental disclosure dates, sector-peer availability, number of reversal.",
+      "source": {
+        "source_type": "mcp_server_docstring",
+        "path": "src/mcptools/mcp_server.py"
+      }
+    },
+    {
+      "id": "tool-build_evidence_bundle",
+      "type": "tool_description",
+      "title": "build_evidence_bundle",
+      "text": "Return the full evidence bundle for a session whose run_full_analysis has completed: ALL observed features and the smaller COMMITTED evidence set that may be cited in an explanation. Cite only committed evidence.",
+      "source": {
+        "source_type": "mcp_server_docstring",
+        "path": "src/mcptools/mcp_server.py"
+      }
+    },
+    {
+      "id": "tool-backtest_sector_catchup",
+      "type": "tool_description",
+      "title": "backtest_sector_catchup",
+      "text": "Historical test of the \"sector laggard catches up\" idea for one sector group. Every Friday, a stock whose 20-day return is below its sector benchmark by more than the threshold is a laggard. The tool then measures the.",
+      "source": {
+        "source_type": "mcp_server_docstring",
+        "path": "src/mcptools/mcp_server.py"
+      }
+    },
+    {
+      "id": "tool-calculate_fundamental_change",
+      "type": "tool_description",
+      "title": "calculate_fundamental_change",
+      "text": "For the latest quarterly result disclosed by the analysis date, compute the change in revenue, net profit, EBITDA margin and net debt / TTM EBITDA (YoY and QoQ), a line per disclosed quarter (quarterly_history: EBITDA.",
+      "source": {
+        "source_type": "mcp_server_docstring",
+        "path": "src/mcptools/mcp_server.py"
+      }
+    },
+    {
+      "id": "tool-analyze_macro_stock_relationship",
+      "type": "tool_description",
+      "title": "analyze_macro_stock_relationship",
+      "text": "Relationship between ONE stock and USD/TRY, EUR/TRY, policy rate, inflation or Fed rate: correlation, stock return in FX terms and first-half/second-half stability. Use for \"how does X relate to the exchange rate\".",
+      "source": {
+        "source_type": "mcp_server_docstring",
+        "path": "src/mcptools/mcp_server.py"
+      }
+    }
+  ]
+}

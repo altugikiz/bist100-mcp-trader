@@ -6,3 +6,5 @@ scipy
 scikit-learn
 mcp<2
 anthropic
+mlx-lm
+transformers

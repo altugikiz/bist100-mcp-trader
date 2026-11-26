@@ -15,7 +15,7 @@ A CSE-481 Engineering Economics term project covering a **30-stock BIST 100 univ
 - **Sensitivity analysis** — sweep over BUY thresholds and score weight configurations to find the optimal parameter set
 - **Optional ML prediction** — Logistic Regression and Random Forest classifiers with chronological train/test split
 - **MCP AI agent** — 23 tool endpoints exposed via FastMCP over stdio; supports full evidence-bundle sessions with human review and JSON audit logging
-- **Own local LLM** — Ollama + Qwen3 8B (`bist-analyst`), agent loop and evaluation scripts in `llm/`
+- **Own local LLM (submitted model)** — Qwen3-8B-4bit + LoRA adapter (`llm/adapters8b_v2`), run in-process with MLX (`--model mlx:bist8b-v2`); the Ollama `bist-analyst` base model is kept as the comparison baseline. Agent loop, evaluation and trace scripts in `llm/`
 
 ---
 
@@ -138,6 +138,42 @@ python src/mcptools/mcp_server.py
 # Run 5-step end-to-end test (ASELS, no server needed)
 python src/mcptools/mcp_server.py --test
 ```
+
+---
+
+## Submitted Model (Qwen3-8B-4bit + LoRA adapter, MLX)
+
+The model for the course submission is the base `mlx-community/Qwen3-8B-4bit` (original: `Qwen/Qwen3-8B`, Apache-2.0) with the LoRA adapter in `llm/adapters8b_v2/` (SHA-256 `c854af57b30bf68ef88bf5395a948242f8d5e4445a1a8ea2b280a951ec678b4f`). It runs in-process with MLX on Apple silicon; temperature 0.2, seed 42.
+
+```bash
+source venv/bin/activate
+HF_HUB_OFFLINE=1 python llm/agent.py "<question>" --model mlx:bist8b-v2          # one question
+HF_HUB_OFFLINE=1 python llm/make_traces.py --model mlx:bist8b-v2                 # 5 scenario execution traces
+HF_HUB_OFFLINE=1 python llm/run_eval.py --teacher --model mlx:bist8b-v2          # 25-question evaluation
+python llm/build_rag.py && python llm/build_submission.py                        # RAG file and submission package
+```
+
+Training: `llm/make_dataset.py` (transcripts built by calling the real tools) -> `llm/filter_dataset.py` -> `llm/finetune.sh` (`mlx_lm lora`, rank 8, scale 20, 8 layers, lr 1e-4, 250 iterations, batch 1 x 4 accumulation, max length 8192, seed 0). Files: `data/llm_train_v6/train.jsonl` (2,204 samples) and `valid.jsonl` (239). The adapter covers 18 of the 23 MCP tools; the held-out evaluation tickers (ASELS, TUPRS, GUBRF, THYAO, EREGL) and their sector groups are not in the training data, and the five sample questions are not in it either.
+
+Evaluation (`llm/eval_teacher.json`, 25 questions, evaluation only, not used for training; numbers compared with tool output):
+
+| Metric | Value |
+|---|---|
+| Tool-selection accuracy | 0.92 |
+| Tool-use rate | 0.96 (the last question is a "guarantee me a winner" request, refused without tools) |
+| Invalid tool-call rate | 0.0 |
+| Numeric hallucination rate | 0.001 |
+| Unsupported conclusion rate | 0.0 |
+| Look-ahead rate | 0.0 |
+| Rule violations, raw model text | 1.0 |
+| Rule violations after guard | 0.0 |
+| Average latency | 115 s per question |
+
+Known weaknesses (not hidden): the raw answers violate the formatting/disclaimer rules in every question and are repaired by `llm/guard.py`; for the weekday-pattern scenario the guard replaces the model's text with the tool's own evidence summary (the raw draft stays in the trace); two questions (3 and 8, the ASELS Bollinger touches) were counted as a routing miss because the model skipped `calculate_indicators` and called `detect_reversal_events` directly, although the answer uses the tool's numbers; the adapter sometimes emits a stray `<think>` tag (removed by the guard); Q5-type answers can drift into listing the tool output. The adapter was trained over several rounds; an earlier round (25-question tool selection 0.84, unsupported conclusions 0.04) was replaced by the submitted one.
+
+Disclosed harness steering (`llm/agent.py`, `llm/guard.py`, `llm/nudges.py`, `llm/digest.py`; none of them returns an answer): regex nudges that ask for a missing tool call or a final answer, argument repairs (missing ticker, date formats, invented thresholds or costs dropped, weekday `end_date` set to the analysis date, `usdtry` chosen for dollar/lira questions), an English-language instruction for English research questions, a shortened copy of tool outputs for the model (the full output stays in the trace), and the post-answer guard. The execution traces (`data/events/execution_traces.json`) keep the raw model answer, the messages, every model and tool call and the guard changes. The knowledge base is `data/rag/rag_knowledge_base.json` (44 documents; direct lookup, no vector search); there is no speech-to-text layer and the news layer is 10 curated events.
+
+The sections below describe the Ollama base model (`bist-analyst`) and the earlier fine-tuning experiments, which remain as the comparison baseline.
 
 ---
 

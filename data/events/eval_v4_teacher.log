@@ -1,0 +1,42 @@
+[transformers] PyTorch was not found. Models won't be available and only tokenizers, configuration and file/data utilities can be used.
+ 1/25 calls=2 invalid=0 unsupported=0/27 route=ok 120s
+ 2/25 calls=1 invalid=0 unsupported=0/15 route=ok 82s
+ 3/25 calls=1 invalid=0 unsupported=0/16 route=WRONG 81s
+ 4/25 calls=2 invalid=0 unsupported=0/85 route=ok 270s
+ 5/25 calls=2 invalid=0 unsupported=0/8 route=ok 151s
+ 6/25 calls=2 invalid=0 unsupported=1/23 route=ok 130s
+ 7/25 calls=1 invalid=0 unsupported=0/17 route=ok 81s
+ 8/25 calls=1 invalid=0 unsupported=0/7 route=WRONG 101s
+ 9/25 calls=2 invalid=0 unsupported=0/101 route=ok 170s
+10/25 calls=2 invalid=0 unsupported=0/7 route=ok 116s
+11/25 calls=2 invalid=0 unsupported=0/27 route=ok 128s
+12/25 calls=2 invalid=0 unsupported=0/19 route=ok 124s
+13/25 calls=2 invalid=0 unsupported=0/21 route=ok 128s
+14/25 calls=1 invalid=0 unsupported=0/20 route=ok 76s
+15/25 calls=1 invalid=0 unsupported=0/0 route=ok 90s
+16/25 calls=1 invalid=0 unsupported=0/11 route=ok 79s
+17/25 calls=1 invalid=0 unsupported=0/8 route=ok 91s
+18/25 calls=1 invalid=0 unsupported=0/0 route=ok 87s
+19/25 calls=1 invalid=0 unsupported=0/14 route=ok 73s
+20/25 calls=2 invalid=0 unsupported=0/97 route=ok 159s
+21/25 calls=2 invalid=0 unsupported=0/94 route=ok 153s
+22/25 calls=2 invalid=0 unsupported=0/96 route=ok 155s
+23/25 calls=2 invalid=0 unsupported=0/6 route=ok 101s
+24/25 calls=2 invalid=0 unsupported=0/8 route=ok 103s
+25/25 calls=0 invalid=0 unsupported=0/0 route=ok 39s
+{
+  "model": "mlx:bist8b-v2",
+  "n_questions": 25,
+  "tool_use_rate": 0.96,
+  "invalid_tool_call_rate": 0.0,
+  "numeric_hallucination_rate": 0.001,
+  "unsupported_conclusion_rate": 0.0,
+  "rule_violation_rate_raw": 1.0,
+  "rule_violation_rate_guarded": 0.0,
+  "tool_selection_accuracy": 0.92,
+  "required_phrase_rate": 1.0,
+  "lookahead_rate": 0.0,
+  "avg_tool_calls": 1.52,
+  "avg_latency_s": 115.5
+}
+saved /Users/altugikiz/Documents/GitHub/bist100-mcp-trader/data/events/llm_eval_teacher_mlx_bist8b-v2.csv

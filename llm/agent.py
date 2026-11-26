@@ -11,6 +11,7 @@ Usage:
 """
 
 import argparse
+import datetime as _dt
 import asyncio
 import json
 import re
@@ -116,16 +117,29 @@ def parse_raw_reply(text: str) -> dict:
 
 def _system_prompt(model: str = "") -> str:
     # The fine-tuned adapters were trained with the earlier prompt (Modelfile.ft); keep it for them.
-    fn = "Modelfile.ft" if (model.startswith("mlx:") or model.endswith("-ft")) else "Modelfile"
+    # v2 adapters (model name contains "v2") are trained with the current Modelfile prompt
+    fn = "Modelfile.ft" if ((model.startswith("mlx:") or model.endswith("-ft")) and "v2" not in model) else "Modelfile"
     txt = open(os.path.join(os.path.dirname(__file__), fn)).read()
     sp = txt.split('SYSTEM """', 1)[1].rsplit('"""', 1)[0].strip()
+    if "v2" in model:
+        # these two tools are hidden from the model (MODEL_HIDDEN_TOOLS): point it at the visible one instead
+        old = ("test_weekday_pattern, test_weekday_sequence (two weekdays) and test_weekday_multiday_pattern (three or more weekdays, "
+               "e.g. Mon, Tue, Wed down then Thu, Fri up) for weekday effects")
+        assert old in sp
+        sp = sp.replace(old, "test_weekday_pattern for weekday effects (for any weekday sequence pass its pattern argument, e.g. "
+                             "'Monday, Tuesday down, then Wednesday up', and train_end as the last in-sample day)")
     return sp
+
+
+# Fixed sampling seed (override with BIST_SEED) so a recorded run can be replayed with the same settings.
+SEED = int(os.environ.get("BIST_SEED", "42"))
+_OLLAMA_OPTIONS = {"temperature": 0.2, "num_ctx": 8192, "num_predict": 2000, "seed": SEED}   # cap runaway generations
 
 
 def _raw_options() -> dict:
     """Sampling for fine-tuned raw mode. BIST_SAMPLING=qwen uses Qwen3's recommended non-thinking
     settings; low temperature (0.2) can push a small model into repetition loops."""
-    opts = {"temperature": 0.2, "num_ctx": 12288, "num_predict": 1024}
+    opts = {"temperature": 0.2, "num_ctx": 12288, "num_predict": 1024, "seed": SEED}
     if os.environ.get("BIST_SAMPLING") == "qwen":
         opts.update({"temperature": 0.7, "top_p": 0.8, "top_k": 20, "repeat_penalty": 1.1})
     return opts
@@ -136,13 +150,22 @@ _DISCLAIMER_END = ("belongs to a human reviewer.", "insan incelemesine aittir.")
 
 def _dedupe_paragraphs(text: str) -> str:
     """Drop paragraphs that repeat an earlier paragraph verbatim (loop guard for small fine-tuned models)."""
-    seen, out = set(), []
+    seen, seen_s, out = set(), set(), []
     for para in text.split("\n\n"):
         key = para.strip()
         if key and key in seen:
             continue
         seen.add(key)
-        out.append(para)
+        # inside a paragraph, also drop a sentence that repeats an earlier sentence of the same text verbatim
+        sents, kept = re.split(r"(?<=[.!?])\s+", para), []
+        for sent in sents:
+            k = sent.strip()
+            if len(k) > 25 and k in seen_s:
+                continue
+            if len(k) > 25:
+                seen_s.add(k)
+            kept.append(sent)
+        out.append(" ".join(kept) if len(kept) != len(sents) else para)
     return "\n\n".join(out)
 
 
@@ -165,20 +188,26 @@ def raw_chat(model: str, messages: list, tools: list, think: bool) -> dict:
         if _MLX is None:
             from mlx_lm import load
             _MLX = load(os.environ.get("MLX_BASE", "mlx-community/Qwen3-8B-4bit"),
-                        adapter_path=os.environ.get("MLX_ADAPTER", "llm/adapters8b"))
+                        adapter_path=os.environ.get("MLX_ADAPTER", "llm/adapters8b_v2" if "v2" in model else "llm/adapters8b"))
         from mlx_lm import generate
         from mlx_lm.sample_utils import make_logits_processors, make_sampler
         o = _raw_options()
         # Repetition penalty: a small LoRA-tuned model can loop on long final answers at low temperature
-        procs = make_logits_processors(repetition_penalty=float(os.environ.get("MLX_REP", "1.15")),
+        procs = make_logits_processors(repetition_penalty=float(os.environ.get("MLX_REP", "1.0" if "v2" in model else "1.15")),
                                        repetition_context_size=256)
         from mlx_lm import stream_generate
+        import mlx.core as mx
+        mx.random.seed(SEED)   # same seed before every generation
         text = ""
         for chunk in stream_generate(_MLX[0], _MLX[1], prompt=prompt, max_tokens=o["num_predict"],
                                      sampler=make_sampler(temp=o["temperature"]), logits_processors=procs):
             text += chunk.text
             # Stop criterion: every training answer ends with the disclaimer; a second one means the model is looping
             if sum(text.count(m) for m in _DISCLAIMER_END) >= 2:
+                break
+            # Degenerate loop (the same 8-100 character unit repeated 4+ times at the end): stop and keep one copy
+            if len(text) > 200 and (m_ := re.search(r"(.{8,100}?)\1{3,}$", text[-600:], re.S)):
+                text = text[: len(text) - len(m_.group(0))] + m_.group(1)
                 break
         return parse_raw_reply(_dedupe_paragraphs(text))
     body = {"model": model, "prompt": prompt, "raw": True, "stream": False,
@@ -190,11 +219,11 @@ def raw_chat(model: str, messages: list, tools: list, think: bool) -> dict:
 
 
 def ollama_chat(model: str, messages: list, tools: list, think: bool) -> dict:
-    if model.endswith("-ft"):
+    if model.endswith("-ft") or model.startswith("mlx:"):
         return raw_chat(model, messages, tools, think)
     body = {"model": model, "messages": messages, "tools": tools,
             "stream": False, "think": think,
-            "options": {"temperature": 0.2, "num_ctx": 8192, "num_predict": 2000}}   # cap runaway generations
+            "options": _OLLAMA_OPTIONS}
     req = urllib.request.Request(
         f"{OLLAMA_URL}/api/chat", data=json.dumps(body).encode(),
         headers={"Content-Type": "application/json"})
@@ -373,6 +402,26 @@ def _run_agent(question: str, model: str, think: bool = False,
                     else:
                         args.pop(k)
                     stats["args_repaired"] = stats.get("args_repaired", 0) + 1
+            # Window repair (steering only): a weekday-pattern call must cover the whole period up to the analysis date,
+            # so the out-of-sample half named in the question is not cut off by the model's own end_date.
+            if name == "test_weekday_pattern":
+                m_ad = re.search(r"Analysis date:\s*(\d{2})\.(\d{2})\.(\d{4})", question)
+                if m_ad:
+                    ad = f"{m_ad.group(3)}-{m_ad.group(2)}-{m_ad.group(1)}"
+                    key = "end_date" if "end_date" in args else ("as_of" if "as_of" in args else "end_date")
+                    if args.get(key) != ad and str(args.get("train_end", "")) < ad:
+                        args[key] = ad
+                        stats["end_date_repaired"] = stats.get("end_date_repaired", 0) + 1
+            # Variable repair: a question about the dollar/lira rate is analysed with the usdtry series.
+            if name == "analyze_macro_stock_relationship" and re.search(r"USD\s*/?\s*TRY|dolar|dollar", question, re.I) \
+                    and not re.search(r"policy rate|faiz|interest|TCMB|inflation|enflasyon|CPI", question, re.I) \
+                    and args.get("macro_variable") != "usdtry":
+                args["macro_variable"] = "usdtry"
+                stats["macro_variable_repaired"] = stats.get("macro_variable_repaired", 0) + 1
+            if name == "backtest_sector_catchup" and "lag_threshold" in args and not re.search(
+                    r"threshold|e[şs]ik|percentage point|puan|\d\s*%|\bpp\b|lag(ged)? by", question, re.I):
+                args.pop("lag_threshold", None)   # the model invented a threshold the user never gave: use the tool default
+                stats["threshold_dropped"] = stats.get("threshold_dropped", 0) + 1
             if "cost_bps" in args and not re.search(r"cost|fee|slippage|commission|maliyet|komisyon|baz puan|bps|bp\b", question, re.I):
                 if args.pop("cost_bps", None) not in (None, 0, 0.0):
                     stats["cost_dropped"] = stats.get("cost_dropped", 0) + 1   # the model invented a cost the user never gave
@@ -431,10 +480,15 @@ def _run_agent(question: str, model: str, think: bool = False,
                 except (KeyError, IndexError, TypeError, json.JSONDecodeError):
                     pass
             round_failed = round_failed or bool(err) or '\\"error\\"' in out or '"error"' in out[:40]
-            trace.append({"tool": name, "args": args, "output": out})
+            trace.append({"tool": name, "args": args, "output": out,
+                          "t": _dt.datetime.now().astimezone().isoformat(timespec="milliseconds")})
             if verbose:
                 print(f"[tool] {name}({args}) -> {out[:120]}...")
-            messages.append({"role": "tool", "tool_name": name, "content": out})
+            if "v2" in model:   # v2 adapters read a shortened copy of the tool output; the trace keeps the full output
+                import digest
+                messages.append({"role": "tool", "tool_name": name, "content": digest.digest(name, out)})
+            else:
+                messages.append({"role": "tool", "tool_name": name, "content": out})
         analysis_done = any(t["tool"] == "get_recommended_action" and "action" in t["output"] and "error" not in t["output"][:40]
                             for t in trace)
         # A research tool that already returned its plain-language summary lines is complete: do not drift into the
@@ -444,39 +498,47 @@ def _run_agent(question: str, model: str, think: bool = False,
         state_done = any(t["tool"] == "detect_reversal_events" and re.search(r'evidence_summary\\?": \\?"', t["output"])
                          and not re.search(r'summary_lines\\?": \[', t["output"]) for t in trace)
         weekday_done = any(t["tool"] == "test_weekday_pattern" and "evidence_summary" in t["output"] for t in trace)
+        if (not weekday_done and not final_only and not stats.get("pattern_nudge")
+                and any(t["tool"] == "test_weekday_pattern" and not t["args"].get("pattern") for t in trace)
+                and re.search(r"\b(monday|tuesday|wednesday|thursday|friday|pazartesi|salı|çarşamba|perşembe|cuma)\b", question, re.I)
+                and re.search(r"then|ardından|sonra|pattern|örüntü|desen", question, re.I)):
+            # The model called the weekday tool without the pattern asked: one request to repeat the call with it
+            stats["pattern_nudge"] = 1
+            messages.append({"role": "user", "content":
+                             "The weekday call did not include the pattern from the question, so it did not test it. Call test_weekday_pattern "
+                             "again with ticker, start_date, end_date (the analysis date), train_end = the last day of the in-sample period "
+                             "named in the question (for example 2025-12-31) and pattern = exactly the pattern asked, written as "
+                             "'condition then outcome' (for example 'Monday down, Tuesday down, Wednesday down, then Thursday up, Friday up')."})
+            continue
         catchup_done = "backtest_sector_catchup" in used_now and "rank_sector_relative_strength" in used_now
         fund_done = "calculate_fundamental_change" in used_now and "get_fundamental_metrics" in used_now
         no_session = not re.search(r"recommended action|önerilen aksiyon|run_full_analysis", question, re.I)
         final_msg = None
-        if events_done and no_session:
-            final_msg = ("The tool results above already answer the question. Write the final answer now, in the question's language, "
-                         "quoting the summary_lines numbers exactly and computing no new percentages or differences yourself: total events, how many rose within 5 days and how many did not, "
-                         "the average forward returns at 1, 3, 5 and 10 days, the two comparisons (RSI trough + high volume; bearish "
-                         "Supertrend + below the Ichimoku cloud), any small-sample warning, and the statement about events excluded "
-                         "because their forward window is incomplete.")
+        advice_q = bool(re.search(r"should i buy|buy or sell|buy/sell|price target|guarantee|definitely go up|sure winner|certain to rise|"
+                                  r"hedef fiyat|al[ae]y[ıi]m m[ıi]|almal[ıi] m[ıi]yım|al[- ]sat|garanti", question, re.I))
+        macro_done = "analyze_macro_stock_relationship" in used_now
+        asked = [w for w in re.findall(r"\b[A-Z]{4,6}\b", question) if w in set(getattr(load_server(), "UNIVERSE", {}).get("ticker", []))]
+        kind = None
+        if advice_q and trace and no_session and (macro_done or not asked):   # a named stock waits for its macro relationship
+            kind = "advice"
+        elif macro_done and no_session:
+            kind = "macro"
+        elif events_done and no_session:
+            kind = "events"
         elif state_done and no_session:
-            final_msg = ("The tool result above already answers the question. Write the final answer now, in the question's language, "
-                         "quoting evidence_summary exactly: the rebound rate within 5 days for the matching events, the all-days "
-                         "baseline, the sample size n, and whether it beats the baseline; say that events overlap and the sample is "
-                         "a research indication only.")
+            kind = "state"
         elif weekday_done and no_session:
-            final_msg = ("The tool result above already answers the question. Write the final answer now, in the question's language, "
-                         "quoting evidence_summary exactly and computing no new numbers yourself: how often the full pattern occurred, the in-sample and out-of-sample "
-                         "probability against the unconditional probability with their sample sizes, the mean and median hold return "
-                         "and the return after costs, the multiple-testing risk, and say clearly whether the pattern is stable.")
+            kind = "weekday"
         elif fund_done and no_session:
-            final_msg = ("The tool results above already answer the question. Write the final answer now, in the question's language, "
-                         "without computing any new numbers: list every line of quarterly_history with its estimated disclosure date, EBITDA margin, "
-                         "net debt/TTM EBITDA and abnormal returns; quote improvement_vs_reaction; state that disclosure dates are estimates "
-                         "(quarter end plus 30 or 45 days), not real KAP timestamps; say what the 'vs sector' benchmark is (benchmark_type; "
-                         "XU100 when the stock has no sector peers); say it is association, not causation, with small samples; and say the "
-                         "20-day window after the latest quarter is incomplete if the tool says so.")
+            kind = "fund"
         elif catchup_done and no_session:
-            final_msg = ("The tool results above already answer the question. Write the final answer now, in the question's language: "
-                         "name the most lagging stock with its lag_5d_pct, lag_10d_pct and lag_20d_pct from laggard_diagnosis (percentages as given, no recomputing), then quote the backtest evidence_summary for "
-                         "5, 10 and 20 days (catch-up rate, baseline, p-value, false positives), the label verdict, and the "
-                         "laggard_diagnosis (structural or temporary, with its EBITDA margin and macro numbers). Say the label "
-                         "POTENTIAL_CATCH_UP_CANDIDATE only if the label verdict supports it.")
+            kind = "catchup"
+        if kind:
+            import nudges
+            final_msg = nudges.final_instruction(kind, asked[0] if (kind == "advice" and asked and macro_done) else None)
+            # Language steering: an English question gets an explicit English instruction (the model sometimes opens in Turkish).
+            if kind != "advice" and not re.search(r"[çğıöşüÇĞİÖŞÜ]", question) and not re.search(r"\b(ve|mı|mi|mu|mü|hangi|nedir|kaç|için|sonra|arasında)\b", question, re.I):
+                final_msg += " Write the answer in English."
         if not final_only and final_msg:
             final_only = True
             stats["forced_final"] = 1
@@ -492,14 +554,24 @@ def _run_agent(question: str, model: str, think: bool = False,
 
 
 def run_agent(question: str, model: str, *args, **kwargs) -> dict:
-    """Run the agent loop, then apply the post-answer guard (disable with BIST_GUARD=0)."""
+    """Run the agent loop, then apply the post-answer guard (disable with BIST_GUARD=0).
+
+    Every call also records a full execution trace (res["execution_trace"]): prompts, sampling parameters, every model
+    call and tool call with timestamps, the raw model answer, the guarded answer and what the guard changed.
+    """
+    import tracing
+    rec = tracing.Recorder(model, question)
+    kwargs["chat"] = rec.wrap(kwargs.get("chat", ollama_chat))
     res = _run_agent(question, model, *args, **kwargs)
     res["raw_answer"] = res["answer"]
+    viol = []
     if os.environ.get("BIST_GUARD", "1") != "0" and res["trace"] is not None:
         import guard
         res["answer"], viol = guard.check_and_repair(question, res["answer"], res["trace"])
         res["stats"]["guard_violations"] = viol
+    res["execution_trace"] = rec.finish(res, viol)
     return res
+
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()

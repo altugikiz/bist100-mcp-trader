@@ -153,6 +153,21 @@ NEWS_EVENTS: list[dict] = [
 # 2. get_news_events
 # ---------------------------------------------------------------------------
 
+def _load_events() -> list[dict]:
+    """Read the events from the RAG knowledge base file (data/rag/rag_knowledge_base.json); fall back to NEWS_EVENTS."""
+    import json
+    path = os.path.join(_SRC, "..", "..", "data", "rag", "rag_knowledge_base.json")
+    try:
+        docs = json.load(open(path, encoding="utf-8"))["documents"]
+        ev = [{"ticker": d["ticker"], "date": d["date"], "category": d["category"], "summary": d["text"],
+               "source_type": d["source"]["source_type"]} for d in docs if d.get("type") == "news_event"]
+        if ev:
+            return ev
+    except Exception:
+        pass
+    return NEWS_EVENTS
+
+
 def get_news_events(
     ticker:     str,
     start_date: Optional[str] = None,
@@ -170,7 +185,7 @@ def get_news_events(
         List of event dicts from NEWS_EVENTS matching the criteria.
     """
     ticker = ticker.upper()
-    events = [e for e in NEWS_EVENTS if e["ticker"] == ticker]
+    events = [e for e in _load_events() if e["ticker"] == ticker]
 
     if start_date:
         events = [e for e in events if e["date"] >= start_date]

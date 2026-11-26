@@ -108,6 +108,7 @@ if __name__ == "__main__":
     ap.add_argument("--routing", action="store_true", help="run the unseen-question routing set (eval_routing.json)")
     ap.add_argument("--teacher", action="store_true",
                     help="run the analysis-date (2026-09-10) question set mirroring the 5 sample test question types")
+    ap.add_argument("--only", default="", help="comma-separated 1-based question numbers to run (e.g. 2,23,24)")
     ap.add_argument("--repeat", type=int, default=1, help="ask every question N times and report reproducibility")
     a = ap.parse_args()
 
@@ -123,6 +124,9 @@ if __name__ == "__main__":
         specs = EXPECTED_MAIN
     if a.limit:
         qs, specs = qs[: a.limit], specs[: a.limit]
+    if a.only:
+        keep = [int(x) - 1 for x in a.only.split(",")]
+        qs, specs = [qs[i] for i in keep], [specs[i] for i in keep]
     server = agent.load_server()
     rows = []
     for q, spec in [(q, sp) for q, sp in zip(qs, specs) for _ in range(max(1, a.repeat))]:

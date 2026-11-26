@@ -134,6 +134,27 @@ def check_and_repair(question, answer, trace):
         answer = re.sub(r"\s*(价格)?上涨( etti)?", " yükseldi" if tr else " rose", answer)
         answer = re.sub(r"\s*(价格)?下跌( etti)?", " düştü" if tr else " fell", answer)
         answer = re.sub(r"[\u3040-\u30ff\u3400-\u9fff]+", "", answer)
+    # Stray reasoning tags (an unclosed <think> sometimes opens a raw answer)
+    if re.search(r"</?think>", answer):
+        viol.append("think_tag")
+        answer = re.sub(r"</?think>", "", answer).strip()
+    # A ticker that is neither in the question nor in any tool output is a model slip (for example 'ASELS.IS' as the
+    # subject of an answer about EREGL). With exactly one ticker named in the question it is replaced by that ticker.
+    try:
+        import agent
+        known = set(agent.load_server().UNIVERSE["ticker"])
+        q_t = {w for w in re.findall(r"\b[A-Z]{4,6}\b", question) if w in known}
+        seen_t = q_t | {w for w in re.findall(r"[A-Z]{4,6}", tool_text) if w in known}
+        foreign = {m for m in re.findall(r"\b([A-Z]{4,6})(?:\.IS)?\b", answer) if m in known and m not in seen_t}
+        if foreign:
+            if len(q_t) == 1:
+                for f_ in foreign:
+                    answer = re.sub(r"\b" + f_ + r"(?:\.IS)?\b", next(iter(q_t)), answer)
+                viol.append("foreign_ticker_replaced")
+            else:
+                viol.append("foreign_ticker")
+    except Exception:
+        pass
     # Weekday-pattern answers: the tool's own evidence_summary is the answer. A paraphrase once moved a number from one
     # segment to the other (in-sample vs out-of-sample), which a "does the number exist somewhere" check cannot catch.
     wk = None
@@ -141,10 +162,12 @@ def check_and_repair(question, answer, trace):
         if t["tool"] == "test_weekday_pattern" and "evidence_summary" in t["output"] and '"error"' not in t["output"][:80]:
             wk = _find_key(t["output"], "evidence_summary") or wk
     if wk and wk not in answer:   # idempotent: the eval re-checks answers the guard already repaired
+        # Transparent: the model's own draft stays in the execution trace (raw_answer); the visible text says where it comes from.
+        viol.append("tool_summary_substituted" if not tr else "tool_summary_appended")
         if tr:
-            answer = answer.rstrip() + "\n\nAraç özeti (aynen, İngilizce): " + wk
+            answer = answer.rstrip() + "\n\nAraç özeti (test_weekday_pattern çıktısından aynen, İngilizce): " + wk
         else:
-            answer = wk
+            answer = "Tool evidence summary (verbatim from test_weekday_pattern; the model's own draft is kept in the execution trace): " + wk
     up = answer.upper()
 
     if _ADVICE.search(answer):

@@ -13,6 +13,7 @@ import asyncio, json, os, random, sys
 
 sys.path.insert(0, os.path.dirname(__file__))
 import agent  # noqa: E402
+import digest  # noqa: E402
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 HELD_OUT = {"ASELS", "TUPRS", "GUBRF", "THYAO", "EREGL"}
@@ -23,9 +24,8 @@ TOOLS = agent.tool_specs(server)
 
 
 def _system_prompt() -> str:
-    """Use the same system prompt as the deployed Modelfile so training and inference match."""
-    txt = open(os.path.join(os.path.dirname(__file__), "Modelfile")).read()
-    return txt.split('SYSTEM """', 1)[1].rsplit('"""', 1)[0].strip()
+    """Same system prompt the v2 model gets at inference (agent._system_prompt)."""
+    return agent._system_prompt("mlx:bist8b-v2")
 
 
 SYSTEM = _system_prompt()
@@ -56,7 +56,7 @@ class Chat:
                           "tool_calls": [{"type": "function",
                                           "function": {"name": name, "arguments": args}}]})
         out = json.dumps([raw] if isinstance(raw, str) else raw, default=str)
-        self.msgs.append({"role": "tool", "name": name, "content": out})
+        self.msgs.append({"role": "tool", "name": name, "content": digest.digest(name, out)})
         return parsed(raw)
 
     def answer(self, text):
@@ -255,8 +255,6 @@ Q_DQ_FULL = [("{t} hissesini harness ile analiz et ve veri kalitesi uyarıların
 Q_REV_KEY = [("Supertrend", "supertrend", "Supertrend dönüşlerinden sonra {t} için ne oldu?", "What happened after Supertrend flips for {t}?"),
              ("KAMA", "kama", "{t} için KAMA kesişimlerinin sonrası nasıl?", "How did {t} behave after KAMA crosses?"),
              ("Ichimoku", "ichimoku", "{t} hissesinde Ichimoku olaylarının istatistikleri nedir?", "What are the Ichimoku event statistics for {t}?"),
-             ("alt Bollinger", "lower_band", "{t} hissesinde alt Bollinger bandına dokunuşlar kaç kez 5 günlük toparlanmaya yol açtı?",
-              "How often did lower Bollinger band touches on {t} lead to a 5-day bounce?"),
              ("RSI", "rsi", "{t} için RSI uç olaylarından sonra ne oluyor?", "What happens after RSI extremes for {t}?")]
 Q_WD_DAY = [("{t} hissesinde Pazartesi veya Cuma etkisi örneklem dışında kalıcı mı?", "tr", ["Monday", "Friday"]),
             ("Does {t} show a stable Monday or Friday effect out of sample?", "en", ["Monday", "Friday"]),
@@ -540,8 +538,6 @@ if __name__ == "__main__":
         # full-flow samples are capped: they used to dominate the data and taught the model to over-call
         for q, lang in random.sample(Q_FULL, 2):
             data.append(safe(ex_full, t, q.format(t=t), lang))
-        for q, lang in random.sample(Q_ADV, 1):
-            data.append(safe(ex_full, t, q.format(t=t), lang, True))
         for q, lang in random.sample(Q_WD, 2):
             data.append(safe(ex_weekday, t, q.format(t=t), lang))
         for q, lang in random.sample(Q_REV, 2):
@@ -550,14 +546,9 @@ if __name__ == "__main__":
             data.append(safe(ex_news, t, q.format(t=t), lang))
         for q, lang in random.sample(Q_DQ, 1):
             data.append(safe(ex_dq, t, q.format(t=t), lang))
-    for q, lang in Q_SECT * 4:
-        data.append(safe(ex_sector, q, lang))
     for q, lang in Q_MAC * 4:
         data.append(safe(ex_macro, q, lang))
     # ---- extra diversity: sector groups, data-quality focus, event types, weekday days, macro ranges ----
-    for g in GROUPS:
-        for q, lang in Q_GRP_LAG:
-            data.append(safe(ex_group, g, q.format(g=g), lang))
     for t in TICKERS:
         for q, lang in random.sample(Q_DQ_FULL, 1):
             data.append(safe(ex_full_dq, t, q.format(t=t), lang))
@@ -594,10 +585,12 @@ if __name__ == "__main__":
         data.append(safe(ex_bad_group, q, lang, g))
     for q, a in NO_TOOL * 2:
         data.append({"messages": [{"role": "system", "content": SYSTEM}, {"role": "user", "content": q}, {"role": "assistant", "content": a}], "tools": TOOLS})
+    import dataset_research
+    data += dataset_research.build(Chat, random, DISC, TICKERS, GROUPS, lambda n, a: parsed(call(n, a)))
     data = [d for d in data if d]
     random.shuffle(data)
     nv = max(10, len(data) // 10)
-    out = os.path.join(ROOT, "data", "llm_train")
+    out = os.path.join(ROOT, "data", os.environ.get("TRAIN_DIR", "llm_train"))
     os.makedirs(out, exist_ok=True)
 
     def expand(rows):

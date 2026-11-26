@@ -1,5 +1,7 @@
 # Canlı demo akışı (çevrimdışı doğrulandı: Wi-Fi kapalı, 2026-11-18)
 
+> Not (2026-11-26): Bu akış Ollama taban modeliyle (`bist-analyst`) hazırlanmıştı. Teslim edilen model Qwen3-8B-4bit + LoRA adaptörüdür: `HF_HUB_OFFLINE=1 python llm/agent.py "<soru>" --model mlx:bist8b-v2`. Teslim edilen modelin beş senaryo kaydı `data/events/execution_traces.json` içindedir; beklenen sayılar aşağıdaki tablodan farklı olabilir, doğrusu araç çıktısıdır.
+
 Hazırlık: Ollama çalışıyor (`ollama list` içinde `bist-analyst`), terminalde `source venv/bin/activate`,
 proje klasöründe. Komutlar: `python llm/agent.py "<soru>"`. Veri bitiş (analiz) tarihi her cevapta 2026-09-10.
 

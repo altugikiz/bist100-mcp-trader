@@ -13,10 +13,12 @@ FUSED="${FUSED:-llm/fused}"
 OUTNAME="${OUTNAME:-bist-analyst-ft}"      # must end with -ft (raw chat-template mode in llm/agent.py)
 NUM_LAYERS="${NUM_LAYERS:-16}"
 LR="${LR:-1e-4}"
+MAXLEN="${MAXLEN:-6144}"
+DATA_DIR="${DATA_DIR:-data/llm_train}"
 GRAD_ACC="${GRAD_ACC:-1}"                   # >1 averages gradients over several samples (less noisy than batch 1)
 
-common=(--model "$MODEL" --data data/llm_train --batch-size 1 --num-layers "$NUM_LAYERS"
-        --max-seq-length 6144 --grad-checkpoint --mask-prompt
+common=(--model "$MODEL" --data "$DATA_DIR" --batch-size 1 --num-layers "$NUM_LAYERS"
+        --max-seq-length "$MAXLEN" --grad-checkpoint --mask-prompt
         --learning-rate "$LR" --adapter-path "$ADAPTERS")
 if [ "$GRAD_ACC" -gt 1 ]; then common+=(--grad-accumulation-steps "$GRAD_ACC"); fi
 
@@ -26,11 +28,11 @@ case "${1:-}" in
     python -m mlx_lm lora "${common[@]}" --train --iters 10 --steps-per-report 5 --steps-per-eval 10 --val-batches 2 --save-every 10
     ;;
   train)
-    python llm/filter_dataset.py --model "$MODEL" --limit "${LIMIT:-5900}"
+    python llm/filter_dataset.py --model "$MODEL" --dir "$DATA_DIR" --limit "${LIMIT:-$((MAXLEN-244))}"
     python -m mlx_lm lora "${common[@]}" --train --iters "$ITERS" --steps-per-report 10 --steps-per-eval 100 --val-batches 3 --save-every 50
     ;;
   resume)
-    python llm/filter_dataset.py --model "$MODEL" --limit "${LIMIT:-5900}"
+    python llm/filter_dataset.py --model "$MODEL" --dir "$DATA_DIR" --limit "${LIMIT:-$((MAXLEN-244))}"
     python -m mlx_lm lora "${common[@]}" --train --iters "$ITERS" --steps-per-report 10 --steps-per-eval 100 --val-batches 3 --save-every 50 \
       --resume-adapter-file "$ADAPTERS/adapters.safetensors"
     ;;
