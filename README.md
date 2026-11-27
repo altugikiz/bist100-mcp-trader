@@ -28,14 +28,18 @@ bist100-mcp-trader/
 │   ├── fundamentals/                 # Per-ticker fundamental CSVs
 │   ├── universe_cache/               # Cached daily OHLCV CSVs (one per ticker)
 │   ├── macro/                        # Macro series (TCMB rate, USD/TRY, CPI)
+│   ├── rag/                          # rag_knowledge_base.json (44 documents with source metadata)
 │   ├── events/                       # Event logs, harness comparison and LLM eval outputs (derived CSVs = 2025-12-31 snapshot used in the report)
 │   └── decision_log/                 # Per-session JSON audit logs
 ├── llm/
-│   ├── Modelfile                     # bist-analyst: Qwen3 8B + system prompt + parameters
-│   ├── make_dataset.py / filter_dataset.py / finetune.sh   # LoRA fine-tuning experiment (see report 13.2)
-│   ├── agent.py                      # Ollama tool-calling agent loop over the MCP tools
-│   ├── eval_questions.json           # 20 evaluation questions
-│   ├── run_eval.py                   # Tool-use / invalid-call / unsupported-number metrics
+│   ├── adapters8b_v2/                # Submitted LoRA adapter (adapters.safetensors, SHA-256 c854af57...) + adapter_config.json
+│   ├── agent.py                      # Agent loop (Ollama or in-process MLX) over the MCP tools, with traces and nudges
+│   ├── guard.py / nudges.py / digest.py / tracing.py   # Post-answer guard, harness steering texts, model-facing tool-output digest, execution-trace recorder
+│   ├── make_dataset.py / dataset_research.py / filter_dataset.py / finetune.sh   # Training-data generation and LoRA fine-tuning (report 13.2, 13.5)
+│   ├── make_traces.py                # Execution traces of the 5 scenarios -> data/events/execution_traces.json
+│   ├── build_rag.py / build_submission.py   # RAG knowledge base JSON and the submission package (submission.json + zip)
+│   ├── run_eval.py / eval_teacher.json / eval_questions.json   # Evaluation metrics and question sets
+│   ├── Modelfile                     # bist-analyst baseline: Qwen3 8B (Ollama) + system prompt + parameters
 │   └── run_ab.py                     # Real A/B runs (no tools vs. tools) for harness versions A and B
 ├── results/
 │   ├── support_resistance.png        # Pivot high/low chart
@@ -70,6 +74,7 @@ bist100-mcp-trader/
 │   │   └── harness_experiments.py    # Harness versions A–E comparison experiment
 │   └── mcptools/
 │       └── mcp_server.py             # MCP server exposing 23 tools via FastMCP (stdio)
+├── README_SUBMISSION.md              # Submission run instructions
 ├── requirements.txt
 └── README.md
 ```
@@ -218,7 +223,7 @@ Base 8B (`bist-analyst`) vs fine-tuned 8B on the unseen 14-question set (`llm/ev
 | Invalid tool-call rate | 7.7% / 0% | 5.9% / 0% |
 | Latency per question | 18 s / 31 s | 71 s / 104 s |
 
-`llm/guard.py` (post-answer guard, on by default, `BIST_GUARD=0` disables it) brings rule violations to 0% for both. Recommended demo model: base 8B + guard; the fine-tuned model is the measured comparison. The 4B fine-tune was a negative result. Price data is read offline from `data/universe_cache`; Yahoo Finance is only used with `BIST_ALLOW_NETWORK=1`. Details: report Sections 13.2–13.3.
+`llm/guard.py` (post-answer guard, on by default, `BIST_GUARD=0` disables it) brings rule violations to 0% for both. Course submission: the later fine-tuned adapter (`llm/adapters8b_v2`, section "Submitted Model" above); the base 8B + guard and this first fine-tuning round are the measured comparison. The 4B fine-tune was a negative result. Price data is read offline from `data/universe_cache`; Yahoo Finance is only used with `BIST_ALLOW_NETWORK=1`. Details: report Sections 13.2–13.3.
 
 ### Backtest Performance
 
@@ -250,6 +255,10 @@ Base 8B (`bist-analyst`) vs fine-tuned 8B on the unseen 14-question set (`llm/ev
 |---|---|
 | [`docs/report/`](docs/report/) | Final term project report (`ASELS_BIST100_Harness_Final_Report.docx`) |
 | [`docs/presentation/`](docs/presentation/) | Project presentation slides (`BIST100_Harness_Presentation.pptx`) |
+| [`llm/adapters8b_v2/`](llm/adapters8b_v2/) | Submitted LoRA adapter (safetensors) and its config; base model: `mlx-community/Qwen3-8B-4bit` |
+| [`data/events/execution_traces.json`](data/events/execution_traces.json) | Execution traces of the five scenarios (prompts, parameters, tool calls, raw and final answers) |
+| [`data/rag/rag_knowledge_base.json`](data/rag/rag_knowledge_base.json) | RAG knowledge base (44 documents with source metadata) |
+| `submission.json` (built by `llm/build_submission.py`) | Course submission manifest and package; see `README_SUBMISSION.md` |
 | [`docs/DATA_DICTIONARY.md`](docs/DATA_DICTIONARY.md) | Field-level documentation for all data sources, CSV schemas, and module outputs |
 
 ---
